@@ -8,7 +8,10 @@
     "test": "node --test",
     "lint": "node --check src/*.js",
     "render:benchmarks": "node src/cli.js render-benchmarks",
-    "qa:benchmarks": "node src/cli.js qa-benchmarks"
+    "render:v11": "node src/cli.js render-v11-benchmarks",
+    "render:primitives": "node src/cli.js render-primitive-sheet",
+    "qa:benchmarks": "node src/cli.js qa-benchmarks",
+    "qa:v11": "node src/cli.js qa-v11-benchmarks"
   },
   "engines": {
     "node": ">=22"

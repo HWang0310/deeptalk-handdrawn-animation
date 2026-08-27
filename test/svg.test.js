@@ -37,3 +37,26 @@ test('honors a scene-specified translucent fill without weakening the drawn outl
   translucent.elements[0].fillOpacity = 0.18;
   assert.match(compileSvg(translucent, 4000), /fill-opacity="0\.18"/);
 });
+
+test('adds a deterministic light duplicate sketch only to drawing primitives', () => {
+  const organic = structuredClone(scene);
+  organic.style = { organic: { seed: 'quiet-pencil', wobble: 1.1, widthVariance: 0.12, duplicateSketch: true } };
+  const svg = compileSvg(organic, 4000);
+  assert.match(svg, /data-sketch="duplicate"/);
+  assert.match(svg, />资料 &amp; &lt;数据&gt;<\/text>/);
+  assert.doesNotMatch(svg, /id="cn" data-sketch/);
+});
+
+test('compiles the same organic scene and seed to an identical SVG state', () => {
+  const organic = structuredClone(scene);
+  organic.style = { organic: { seed: 'stable-frame', wobble: 1.1, widthVariance: 0.12, duplicateSketch: true } };
+  assert.equal(compileSvg(organic, 2400), compileSvg(organic, 2400));
+  const alternateSeed = structuredClone(organic);
+  alternateSeed.style.organic.seed = 'alternate-frame';
+  assert.notEqual(compileSvg(organic, 2400), compileSvg(alternateSeed, 2400));
+});
+
+test('uses an explicit ease-out stroke and earlier local fill when a motion profile requests it', () => {
+  const element = { reveal: { startMs: 0, endMs: 1000, easing: 'easeOut', fillStart: 0.45 } };
+  assert.deepEqual(revealProgress(element, 500), { stroke: 0.75, fill: 0.5455 });
+});

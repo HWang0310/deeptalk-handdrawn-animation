@@ -23,16 +23,37 @@ function validateElement(element, scene) {
   if (element.type === 'label' || element.type === 'number') assert(typeof element.text === 'string' && element.text.trim().length > 0, `text element ${element.id} requires text`);
 }
 
+function validateOrganic(scene) {
+  const organic = scene.style?.organic;
+  if (!organic) return;
+  assert(typeof organic.seed === 'string' && organic.seed.length > 0, 'organic seed must be a non-empty string');
+  assert(Number.isFinite(organic.wobble) && organic.wobble >= 0 && organic.wobble <= 4, 'organic wobble must be between 0 and 4');
+  assert(Number.isFinite(organic.widthVariance) && organic.widthVariance >= 0 && organic.widthVariance <= 0.3, 'organic widthVariance must be between 0 and 0.3');
+  assert(typeof organic.duplicateSketch === 'boolean', 'organic duplicateSketch must be boolean');
+}
+
+function validateMotion(scene) {
+  const finalHoldMs = scene.motion?.finalHoldMs;
+  if (finalHoldMs === undefined) return;
+  assert(Number.isFinite(finalHoldMs) && finalHoldMs >= 0 && finalHoldMs < scene.durationMs, 'finalHoldMs must be within scene duration');
+}
+
 export function validateScene(scene) {
   assert(scene && typeof scene.id === 'string' && scene.id.length > 0, 'scene requires an id');
   assert(Number.isFinite(scene.durationMs) && scene.durationMs >= MIN_DURATION_MS && scene.durationMs <= MAX_DURATION_MS, `durationMs must be between ${MIN_DURATION_MS} and ${MAX_DURATION_MS}`);
   assert(scene.canvas?.width === 1920 && scene.canvas?.height === 1080, 'canvas must be 1920x1080');
   assert(Array.isArray(scene.elements) && scene.elements.length > 0, 'scene requires elements');
+  validateOrganic(scene);
+  validateMotion(scene);
   const ids = new Set();
   for (const element of scene.elements) {
     validateElement(element, scene);
     assert(!ids.has(element.id), `duplicate element id: ${element.id}`);
     ids.add(element.id);
+  }
+  for (const overlap of scene.composition?.semanticOverlaps ?? []) {
+    assert(Array.isArray(overlap) && overlap.length === 2, 'semantic overlap must name exactly two elements');
+    for (const elementId of overlap) assert(ids.has(elementId), `semantic overlap references unknown element: ${elementId}`);
   }
   return scene;
 }

@@ -49,3 +49,19 @@ test('accepts all required independent benchmark identities', () => {
 
   assert.deepEqual(validateBenchmarks(benchmarkIds.map((id) => ({ ...validScene, id }))).map((scene) => scene.id), benchmarkIds);
 });
+
+test('rejects a semantic overlap annotation that names an unknown element', () => {
+  assert.throws(
+    () => validateScene({
+      ...validScene,
+      composition: { semanticOverlaps: [['line', 'missing']] },
+    }),
+    /semantic overlap references unknown element: missing/,
+  );
+});
+
+test('rejects an invalid deterministic organic profile before rendering', () => {
+  const scene = structuredClone(validScene);
+  scene.style = { organic: { seed: '', wobble: -1, widthVariance: 2, duplicateSketch: 'yes' } };
+  assert.throws(() => validateScene(scene), /organic seed/);
+});

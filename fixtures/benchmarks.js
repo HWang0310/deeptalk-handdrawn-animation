@@ -112,3 +112,29 @@ export const benchmarks = [
     ],
   },
 ];
+
+const easingCycle = ['easeOut', 'easeInOut', 'linear'];
+const fillCycle = [0.46, 0.54, 0.6];
+
+export const v11Benchmarks = benchmarks.map((scene, sceneIndex) => {
+  const finalHoldMs = 700;
+  const drawingEndMs = scene.durationMs - finalHoldMs;
+  const scaleTime = (timeMs) => Math.round(timeMs * drawingEndMs / scene.durationMs);
+  return {
+    ...scene,
+    style: { organic: { seed: `v11:${scene.id}`, wobble: 1.8, widthVariance: 0.16, duplicateSketch: true } },
+    motion: { finalHoldMs },
+    composition: { focusArea: { x: 260, y: 230, width: 1400, height: 650 }, semanticOverlaps: [] },
+    elements: scene.elements.map((element, elementIndex) => ({
+      ...element,
+      bounds: { ...element.bounds },
+      reveal: {
+        ...element.reveal,
+        startMs: scaleTime(element.reveal.startMs),
+        endMs: Math.min(drawingEndMs, scaleTime(element.reveal.endMs)),
+        easing: easingCycle[(sceneIndex + elementIndex) % easingCycle.length],
+        fillStart: fillCycle[(sceneIndex + elementIndex) % fillCycle.length],
+      },
+    })),
+  };
+});

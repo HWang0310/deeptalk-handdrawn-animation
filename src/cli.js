@@ -1,13 +1,15 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 
-import { benchmarks } from '../fixtures/benchmarks.js';
+import { benchmarks, v11Benchmarks } from '../fixtures/benchmarks.js';
+import { primitiveSheet } from '../fixtures/primitive-sheet.js';
 import { renderScene } from './render.js';
 import { runQa } from './qa.js';
 
-function qaReport() {
-  const results = benchmarks.map((scene) => ({ sceneId: scene.id, ...runQa(scene) }));
+function qaReport(scenes, version) {
+  const results = scenes.map((scene) => ({ sceneId: scene.id, ...runQa(scene) }));
   return {
+    version,
     generatedAt: new Date().toISOString(),
     total: results.length,
     failed: results.filter((result) => !result.passed).length,
@@ -15,30 +17,42 @@ function qaReport() {
   };
 }
 
+async function writeReport(report, outputRoot) {
+  const outputDir = join(outputRoot, report.version, 'qa');
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(join(outputDir, 'benchmark-qa.json'), `${JSON.stringify(report, null, 2)}\n`);
+}
+
+async function renderBenchmarks(scenes, version, outputRoot, writeOutput) {
+  const report = qaReport(scenes, version);
+  if (report.failed > 0) throw new Error(`machine QA rejected ${report.failed} benchmark scene(s)`);
+  const renders = [];
+  for (const scene of scenes) {
+    renders.push({ sceneId: scene.id, ...await renderScene(scene, { outputDir: join(outputRoot, version, 'benchmarks', scene.id), fps: 12, encode: true }) });
+  }
+  if (writeOutput) await writeReport(report, outputRoot);
+  return { ...report, renders };
+}
+
 export async function runCli(args, { outputRoot = resolve('output'), writeOutput = true } = {}) {
   const [command] = args;
   if (command === 'qa-benchmarks') {
-    const report = qaReport();
-    if (writeOutput) {
-      const outputDir = join(outputRoot, 'qa');
-      await mkdir(outputDir, { recursive: true });
-      await writeFile(join(outputDir, 'benchmark-qa.json'), `${JSON.stringify(report, null, 2)}\n`);
-    }
+    const report = qaReport(benchmarks, 'v1');
+    if (writeOutput) await writeReport(report, outputRoot);
     return report;
   }
-  if (command === 'render-benchmarks') {
-    const report = qaReport();
-    if (report.failed > 0) throw new Error(`machine QA rejected ${report.failed} benchmark scene(s)`);
-    const renders = [];
-    for (const scene of benchmarks) {
-      renders.push({ sceneId: scene.id, ...await renderScene(scene, { outputDir: join(outputRoot, 'benchmarks', scene.id), fps: 12, encode: true }) });
-    }
-    if (writeOutput) {
-      const outputDir = join(outputRoot, 'qa');
-      await mkdir(outputDir, { recursive: true });
-      await writeFile(join(outputDir, 'benchmark-qa.json'), `${JSON.stringify(report, null, 2)}\n`);
-    }
-    return { ...report, renders };
+  if (command === 'qa-v11-benchmarks') {
+    const report = qaReport(v11Benchmarks, 'v1.1');
+    if (writeOutput) await writeReport(report, outputRoot);
+    return report;
+  }
+  if (command === 'render-benchmarks') return renderBenchmarks(benchmarks, 'v1', outputRoot, writeOutput);
+  if (command === 'render-v11-benchmarks') return renderBenchmarks(v11Benchmarks, 'v1.1', outputRoot, writeOutput);
+  if (command === 'render-primitive-sheet') {
+    const qa = runQa(primitiveSheet);
+    if (!qa.passed) throw new Error('machine QA rejected primitive sheet');
+    const render = await renderScene(primitiveSheet, { outputDir: join(outputRoot, 'v1.1', 'primitives', primitiveSheet.id), fps: 12, encode: true });
+    return { version: 'v1.1', total: 1, failed: 0, renders: [{ sceneId: primitiveSheet.id, ...render }], qa };
   }
   throw new Error(`unknown command: ${command ?? '(none)'}`);
 }
