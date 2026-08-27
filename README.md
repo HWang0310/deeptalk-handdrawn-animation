@@ -8,6 +8,8 @@ Input: a local scene spec with canvas, elements, stroke/fill style, text, timed 
 
 Output: deterministic SVG/PNG frame states, local MP4, final-frame PNG, contact sheet, and machine-QA JSON. Generated media remains under ignored `output/`.
 
+The rendered V1 evidence is local at `output/benchmarks/<benchmark-id>/`; benchmark QA is at `output/qa/benchmark-qa.json`.
+
 ## Development
 
 ```bash

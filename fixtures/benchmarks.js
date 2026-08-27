@@ -32,7 +32,7 @@ export const benchmarks = [
       box('lantern', 825, 300, 270, 340, 780, '#fff5cb'),
       path('lantern-ribs', 'M 892 320 L 892 620 M 960 305 L 960 635 M 1028 320 L 1028 620', bounds(882, 295, 156, 345), 1400, coral),
       path('tassel', 'M 960 640 L 960 760 M 925 740 Q 960 785 995 740', bounds(915, 630, 90, 170), 2050, gold),
-      circle('glow', 960, 470, 210, 2600, '#fff0a8', gold),
+      { ...circle('glow', 960, 470, 210, 2600, '#fff0a8', gold), fillOpacity: 0.18 },
       label('caption', '聚焦', 905, 875, 3200, coral, 58),
     ],
   },

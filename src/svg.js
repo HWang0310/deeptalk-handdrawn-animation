@@ -27,7 +27,8 @@ function drawAttributes(element, progress) {
   const fill = element.fill ?? DEFAULT_FILL;
   const width = element.strokeWidth ?? 8;
   const dashOffset = Number((DASH_LENGTH * (1 - progress.stroke)).toFixed(2));
-  return `stroke="${escapeXml(stroke)}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${DASH_LENGTH}" stroke-dashoffset="${dashOffset}" fill="${escapeXml(fill)}" fill-opacity="${progress.fill}"`;
+  const fillOpacity = Number((progress.fill * (element.fillOpacity ?? 1)).toFixed(4));
+  return `stroke="${escapeXml(stroke)}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${DASH_LENGTH}" stroke-dashoffset="${dashOffset}" fill="${escapeXml(fill)}" fill-opacity="${fillOpacity}"`;
 }
 
 function renderShape(element, progress) {
@@ -40,7 +41,7 @@ function renderShape(element, progress) {
     case 'circle':
       return `<circle cx="${element.cx}" cy="${element.cy}" r="${element.r}" ${attrs}/>`;
     case 'arrow':
-      return `<line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" ${attrs} marker-end="url(#arrowhead)"/>`;
+      return `<line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" ${attrs}${progress.stroke >= 0.995 ? ' marker-end="url(#arrowhead)"' : ''}/>`;
     case 'label':
     case 'number':
       return `<text x="${element.x}" y="${element.y}" fill="${escapeXml(element.color ?? DEFAULT_STROKE)}" opacity="${progress.stroke}" font-family="PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="${element.fontSize ?? 42}" font-weight="${element.fontWeight ?? 600}">${escapeXml(element.text)}</text>`;
