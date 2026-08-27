@@ -3,7 +3,7 @@
 ## Current truth
 
 - Repository: `deeptalk-handdrawn-animation`, branch `main`, public remote `https://github.com/HWang0310/deeptalk-handdrawn-animation` (main tracks `origin/main`).
-- Stage: V1.1 SVG-first visual-quality iteration is rendered, compared against its preserved V1 baseline, and verified locally.
+- Stage: V1.2 scene-richness iteration adds explicit group/layer composition grammar and four rendered complex benchmarks.
 - Scope: local 16:9, 3–10 second hand-drawn explainer assets; seven benchmark scene types.
 - Core choice: SVG scene model and deterministic frame states; Canvas is not a V1 scene model. FFmpeg encodes local PNG frames when available.
 - No DeepTalk Core source, configuration, or git state has been modified.
@@ -34,3 +34,4 @@
 - The organic treatment is controlled, not a freehand simulation: curved paths can still feel geometric, duplicate strokes become too busy if amplified, and line joins remain SVG joins rather than pressure-sensitive pen behavior.
 - The primitive vocabulary is intentionally icon-scale. It does not yet cover character poses, perspective scenes, or arbitrary illustrations. Hand overlay remains unimplemented because it is optional, not a V1.1 blocker.
 - Keep SVG-first for the next measured iteration. Before adding Remotion, benchmark a genuinely timeline-heavy scene; before adding an overlay, test it only on a small number of assets and compare readability against the no-overlay control.
+- V1.2 evidence is local at `output/v1.2/benchmarks/`: cause/mechanism/outcome, multi-actor relation, accumulation/pressure, and before/after transition. All four passed mechanical QA; composition warnings remain review candidates rather than automatic layout.

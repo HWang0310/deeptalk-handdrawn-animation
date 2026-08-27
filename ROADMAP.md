@@ -18,3 +18,9 @@
 - Optional hand-overlay experiment, isolated from the core renderer, only after a limited readability comparison.
 - Remotion only if benchmark timelines prove SVG/FFmpeg orchestration is insufficient.
 - Reviewed still-image background adapters; never delegate Chinese factual text to image generation.
+
+## V1.2 — scene richness (complete)
+
+- Explicit background/middle/foreground groups and focal/support/context roles.
+- Four deterministic composition patterns and four rendered complex benchmarks.
+- Selected role-person and resource-stack primitive additions; no automatic layout.

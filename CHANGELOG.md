@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 — 2026-08-27
+
+- Added explicit scene groups, layer ordering, composition grammar, selected role/resource primitives, and four V1.2 complex MP4 benchmarks.
+
 ## 0.2.0 — 2026-08-27
 
 - Added deterministic organic SVG styling: seeded path wobble, controlled stroke-width variation, and an optional restrained duplicate-sketch pass.

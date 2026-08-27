@@ -21,3 +21,7 @@ The repository now includes a first original vocabulary of 15 composable primiti
 Composition assistance is deliberately narrow. QA warns about unannotated object collision candidates, small text/object spacing, missed focus areas, and short final holds; protected-edge and maximum-density rules remain hard mechanical QA. `composition.semanticOverlaps` lets a scene declare a deliberate pair; schema validation rejects unknown annotation IDs. Warnings never alter a scene or claim semantic/aesthetic understanding.
 
 V1 uses `output/v1/`; V1.1 uses `output/v1.1/`. Both local QA reports contain 7 scenes and 0 failures (V1 has 8 warnings; V1.1 has 0 after explicitly annotating the intentional lantern/glow overlap). Side-by-side comparison frames and a contact sheet are local in `output/compare/`. The visual inspection found V1.1 visibly less mechanically uniform at original size, while preserving Chinese and final-frame readability. The change is intentionally restrained, so a no-overlay baseline remains a credible option. No user aesthetic choice is required for this iteration. Hand overlay remains an optional, unimplemented experiment. DeepTalk Core was not modified.
+
+## 2026-08-27 — V1.2 scene richness
+
+V1.2 adds explicit group/layer/role metadata and four deterministic composition patterns. Four richer original scenes render locally under `output/v1.2/benchmarks/`; V1/V1.1 remain regression controls. Scene QA remains warning-only for composition candidates, and no scene is auto-rearranged. DeepTalk Core remains untouched.
