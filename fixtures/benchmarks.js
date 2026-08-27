@@ -124,7 +124,10 @@ export const v11Benchmarks = benchmarks.map((scene, sceneIndex) => {
     ...scene,
     style: { organic: { seed: `v11:${scene.id}`, wobble: 1.8, widthVariance: 0.16, duplicateSketch: true } },
     motion: { finalHoldMs },
-    composition: { focusArea: { x: 260, y: 230, width: 1400, height: 650 }, semanticOverlaps: [] },
+    composition: {
+      focusArea: { x: 260, y: 230, width: 1400, height: 650 },
+      semanticOverlaps: scene.id === 'core-object' ? [['lantern', 'glow']] : [],
+    },
     elements: scene.elements.map((element, elementIndex) => ({
       ...element,
       bounds: { ...element.bounds },

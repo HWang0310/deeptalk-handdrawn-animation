@@ -23,7 +23,7 @@
 
 ## Verified V1.1 evidence
 
-- The same seven original benchmark scenes render at the same 1920×1080 target durations under `output/v1.1/benchmarks/`; `output/v1.1/qa/benchmark-qa.json` reports 7 total scenes, 0 failures, and 1 warning. The corresponding V1 report has 8 warnings and 0 failures.
+- The same seven original benchmark scenes render at the same 1920×1080 target durations under `output/v1.1/benchmarks/`; `output/v1.1/qa/benchmark-qa.json` reports 7 total scenes, 0 failures, and 0 warnings. The corresponding V1 report has 8 warnings and 0 failures; V1.1 marks the intentional lantern/glow overlap explicitly.
 - Side-by-side local final frames and `output/compare/contact-sheet-v1-v11.png` were inspected. V1.1 adds a restrained second sketch pass and coordinate/width irregularity on drawing primitives while Chinese text remains unfiltered and crisp.
 - `output/v1.1/primitives/primitive-vocabulary/` renders a 15-item original, composable primitive sheet: person, building, document, money bag, bulb, cloud, factory, screen, chart, emotion mark, arrow family, circle annotation, underline, cross-out, and emphasis strokes.
 - V1.1 motion uses varied ease-out, ease-in-out, and linear stroke reveals; local fills enter at deliberately varied late phases; every benchmark keeps at least a 700 ms final hold.

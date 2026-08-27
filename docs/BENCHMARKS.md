@@ -35,4 +35,4 @@ The seven V1.1 fixtures retain the same IDs, element geometry, labels, scene dur
 | Final frame | readable endpoint | same content plus a minimum 700 ms final hold |
 | Information density / pacing | sparse-to-moderate | unchanged density; varied timing makes staged scenes less metronomic |
 
-V1.1 passed 7/7 scenes with zero failures and one warning. The texture improvement is real but intentionally limited; it should not be described as a fully freehand renderer. No user selection is required to keep V1.1 as the current baseline.
+V1.1 passed 7/7 scenes with zero failures and zero warnings. The one intentional lantern/glow overlap is explicitly annotated rather than treated as a collision candidate. The texture improvement is real but intentionally limited; it should not be described as a fully freehand renderer. No user selection is required to keep V1.1 as the current baseline.

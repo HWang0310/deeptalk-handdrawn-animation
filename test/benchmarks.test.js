@@ -29,4 +29,5 @@ test('derives V1.1 from the same benchmark content with seeded style and held en
     assert.ok(v11.elements.every((element) => element.reveal.endMs <= v11.durationMs - v11.motion.finalHoldMs));
     assert.ok(new Set(v11.elements.map((element) => element.reveal.easing)).size > 1);
   }
+  assert.deepEqual(v11Benchmarks.find((scene) => scene.id === 'core-object').composition.semanticOverlaps, [['lantern', 'glow']]);
 });
