@@ -9,9 +9,11 @@
     "lint": "node --check src/*.js",
     "render:benchmarks": "node src/cli.js render-benchmarks",
     "render:v11": "node src/cli.js render-v11-benchmarks",
+    "render:v12": "node src/cli.js render-complex-benchmarks",
     "render:primitives": "node src/cli.js render-primitive-sheet",
     "qa:benchmarks": "node src/cli.js qa-benchmarks",
-    "qa:v11": "node src/cli.js qa-v11-benchmarks"
+    "qa:v11": "node src/cli.js qa-v11-benchmarks",
+    "qa:v12": "node src/cli.js qa-complex-benchmarks"
   },
   "engines": {
     "node": ">=22"

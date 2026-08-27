@@ -70,7 +70,13 @@ function renderShape(element, progress, organic = null, variant = 'main') {
 }
 
 export function compileSvg(scene, timeMs) {
-  const elements = scene.elements.map((element) => {
+  const layers = { background: 0, middle: 1, foreground: 2 };
+  const groups = new Map((scene.groups ?? []).map((group) => [group.id, group]));
+  const elements = scene.elements.map((element, index) => ({ element, index })).sort((first, second) => {
+    const firstLayer = layers[groups.get(first.element.groupId)?.layer] ?? 1;
+    const secondLayer = layers[groups.get(second.element.groupId)?.layer] ?? 1;
+    return firstLayer - secondLayer || first.index - second.index;
+  }).map(({ element }) => {
     const progress = revealProgress(element, timeMs);
     const organic = resolveOrganic(scene, element);
     const primary = renderShape(element, progress, organic);

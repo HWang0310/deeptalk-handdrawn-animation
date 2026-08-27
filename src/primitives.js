@@ -7,7 +7,7 @@ const paper = '#fffaf0';
 
 export const primitiveNames = [
   'person', 'building', 'document', 'money-bag', 'light-bulb', 'cloud', 'factory', 'screen',
-  'simple-chart', 'emotion-mark', 'arrow-family', 'circle-annotation', 'underline', 'cross-out', 'emphasis-strokes',
+  'simple-chart', 'emotion-mark', 'arrow-family', 'circle-annotation', 'underline', 'cross-out', 'emphasis-strokes', 'role-person', 'resource-stack',
 ];
 
 function createTools({ id, x, y, scale = 1, startMs = 0 }) {
@@ -43,6 +43,8 @@ export function createPrimitive(name, options) {
     case 'underline': return [path('line', d(['M', px(10), py(105), 'Q', px(75), py(120), px(155), py(102)]), bounds(8, 98, 150, 28), 0, coral)];
     case 'cross-out': return [path('cross', d(['M', px(20), py(35), 'L', px(145), py(130), 'M', px(145), py(35), 'L', px(20), py(130)]), bounds(18, 32, 130, 102), 0, coral)];
     case 'emphasis-strokes': return [path('marks', d(['M', px(70), py(72), 'L', px(70), py(5), 'M', px(24), py(72), 'L', px(5), py(40), 'M', px(116), py(72), 'L', px(135), py(40), 'M', px(31), py(108), 'L', px(8), py(128), 'M', px(109), py(108), 'L', px(132), py(128)]), bounds(3, 2, 134, 130), 0, gold)];
+    case 'role-person': return [circle('head', 58, 28, 21, 0, '#e8eff9', blue), box('badge', 28, 70, 60, 28, 180, '#fff5cb', gold), path('body', d(['M', px(58), py(50), 'L', px(58), py(142), 'M', px(22), py(86), 'L', px(94), py(86), 'M', px(58), py(142), 'L', px(28), py(178), 'M', px(58), py(142), 'L', px(88), py(178)]), bounds(20, 48, 78, 132), 260, ink)];
+    case 'resource-stack': return [box('block-one', 10, 78, 120, 42, 0, '#fff5cb', gold), box('block-two', 24, 42, 120, 42, 180, '#e8f4ef', mint), box('block-three', 38, 6, 120, 42, 360, '#e8eff9', blue), path('marks', d(['M', px(56), py(98), 'L', px(88), py(98), 'M', px(70), py(62), 'L', px(102), py(62), 'M', px(84), py(26), 'L', px(116), py(26)]), bounds(52, 20, 70, 86), 520, ink)];
     default: throw new Error(`unknown primitive: ${name}`);
   }
 }

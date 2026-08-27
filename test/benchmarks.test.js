@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { benchmarks, v11Benchmarks } from '../fixtures/benchmarks.js';
 import { validateBenchmarks } from '../src/schema.js';
+import { complexBenchmarks } from '../fixtures/complex-benchmarks.js';
 
 test('defines seven distinct original benchmark scenes for V1 grammar coverage', () => {
   const expectedIds = [
@@ -17,6 +18,12 @@ test('defines seven distinct original benchmark scenes for V1 grammar coverage',
   assert.deepEqual(benchmarks.map((scene) => scene.id), expectedIds);
   assert.equal(validateBenchmarks(benchmarks).length, 7);
   assert.ok(benchmarks.every((scene) => scene.elements.length >= 4));
+});
+
+test('defines four richer V1.2 benchmarks with explicit composition metadata', () => {
+  assert.deepEqual(complexBenchmarks.map((scene) => scene.id), ['cause-mechanism-outcome', 'multi-actor-relation', 'accumulation-pressure', 'before-after-transition']);
+  assert.equal(validateBenchmarks(complexBenchmarks).length, 4);
+  assert.ok(complexBenchmarks.every((scene) => scene.groups.length >= 3 && scene.motion.finalHoldMs >= 800));
 });
 
 test('derives V1.1 from the same benchmark content with seeded style and held endings', () => {

@@ -65,3 +65,8 @@ test('rejects an invalid deterministic organic profile before rendering', () => 
   scene.style = { organic: { seed: '', wobble: -1, widthVariance: 2, duplicateSketch: 'yes' } };
   assert.throws(() => validateScene(scene), /organic seed/);
 });
+
+test('rejects invalid group metadata and unknown element group references', () => {
+  assert.throws(() => validateScene({ ...validScene, groups: [{ id: 'g', layer: 'middle', role: 'support' }, { id: 'g', layer: 'middle', role: 'support' }] }), /duplicate group id/);
+  assert.throws(() => validateScene({ ...validScene, elements: [{ ...validScene.elements[0], groupId: 'missing' }] }), /unknown group/);
+});

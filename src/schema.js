@@ -38,6 +38,18 @@ function validateMotion(scene) {
   assert(Number.isFinite(finalHoldMs) && finalHoldMs >= 0 && finalHoldMs < scene.durationMs, 'finalHoldMs must be within scene duration');
 }
 
+function validateGroups(scene) {
+  const ids = new Set();
+  for (const group of scene.groups ?? []) {
+    assert(group && typeof group.id === 'string' && group.id.length > 0, 'group requires an id');
+    assert(!ids.has(group.id), `duplicate group id: ${group.id}`);
+    assert(['background', 'middle', 'foreground'].includes(group.layer), `group ${group.id} has invalid layer`);
+    assert(['focal', 'support', 'context'].includes(group.role), `group ${group.id} has invalid role`);
+    ids.add(group.id);
+  }
+  return ids;
+}
+
 export function validateScene(scene) {
   assert(scene && typeof scene.id === 'string' && scene.id.length > 0, 'scene requires an id');
   assert(Number.isFinite(scene.durationMs) && scene.durationMs >= MIN_DURATION_MS && scene.durationMs <= MAX_DURATION_MS, `durationMs must be between ${MIN_DURATION_MS} and ${MAX_DURATION_MS}`);
@@ -45,9 +57,11 @@ export function validateScene(scene) {
   assert(Array.isArray(scene.elements) && scene.elements.length > 0, 'scene requires elements');
   validateOrganic(scene);
   validateMotion(scene);
+  const groupIds = validateGroups(scene);
   const ids = new Set();
   for (const element of scene.elements) {
     validateElement(element, scene);
+    if (element.groupId !== undefined) assert(groupIds.has(element.groupId), `element ${element.id} references unknown group: ${element.groupId}`);
     assert(!ids.has(element.id), `duplicate element id: ${element.id}`);
     ids.add(element.id);
   }

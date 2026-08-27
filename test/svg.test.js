@@ -60,3 +60,12 @@ test('uses an explicit ease-out stroke and earlier local fill when a motion prof
   const element = { reveal: { startMs: 0, endMs: 1000, easing: 'easeOut', fillStart: 0.45 } };
   assert.deepEqual(revealProgress(element, 500), { stroke: 0.75, fill: 0.5455 });
 });
+
+test('renders declared background before an earlier foreground element', () => {
+  const layered = structuredClone(scene);
+  layered.groups = [{ id: 'front', layer: 'foreground', role: 'focal' }, { id: 'back', layer: 'background', role: 'context' }];
+  layered.elements[0].groupId = 'front';
+  layered.elements[1].groupId = 'back';
+  const svg = compileSvg(layered, 4000);
+  assert.ok(svg.indexOf('id="cn"') < svg.indexOf('id="line"'));
+});

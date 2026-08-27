@@ -5,7 +5,7 @@ const label = (id, text, x, y, startMs) => ({
   bounds: { x, y: y - 34, width: 220, height: 44 }, reveal: { startMs, endMs: startMs + 360 },
 });
 
-const chineseNames = ['人物', '建筑', '文档', '钱袋', '灯泡', '云朵', '工厂', '屏幕', '折线图', '情绪', '箭头', '圈注', '下划线', '划除', '强调线'];
+const chineseNames = ['人物', '建筑', '文档', '钱袋', '灯泡', '云朵', '工厂', '屏幕', '折线图', '情绪', '箭头', '圈注', '下划线', '划除', '强调线', '角色', '资源堆叠'];
 
 export const primitiveSheet = {
   id: 'primitive-vocabulary', title: 'V1.1 原创手绘图元', durationMs: 10000, canvas: { width: 1920, height: 1080 },

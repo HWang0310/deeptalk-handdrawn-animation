@@ -99,6 +99,9 @@ export function runQa(scene) {
     if (insideCount / objects.length < 0.6) warnings.push(finding('focus-miss', null, 'fewer than 60% of primary object bounds are inside the declared focus area'));
   }
   if ((scene.motion?.finalHoldMs ?? 0) < MIN_FINAL_HOLD_MS) warnings.push(finding('final-hold', null, `final hold is shorter than ${MIN_FINAL_HOLD_MS}ms`));
+  const readingOrder = scene.composition?.readingOrder ?? [];
+  const groupStarts = readingOrder.map((groupId) => Math.min(...scene.elements.filter((element) => element.groupId === groupId).map((element) => element.reveal.startMs), Infinity));
+  if (groupStarts.some((start, index) => index > 0 && start < groupStarts[index - 1])) warnings.push(finding('visual-path', null, 'declared group reading order contradicts reveal timing'));
   checks.compositionWarnings = warnings.length;
   if (!checks.durationInRange) findings.push(finding('duration', null, 'asset duration must stay between 3 and 10 seconds'));
   return { passed: findings.length === 0, checks, findings, warnings };

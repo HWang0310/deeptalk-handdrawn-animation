@@ -59,3 +59,12 @@ test('warns when text crowding, a missed focus area, or short final hold threate
   assert.ok(codes.includes('focus-miss'));
   assert.ok(codes.includes('final-hold'));
 });
+
+test('warns when declared group reading order contradicts reveal order', () => {
+  const scene = structuredClone(compositionScene);
+  scene.groups = [{ id: 'first', layer: 'middle', role: 'support' }, { id: 'last', layer: 'foreground', role: 'focal' }];
+  scene.composition.readingOrder = ['first', 'last'];
+  scene.elements[0].groupId = 'first'; scene.elements[1].groupId = 'last';
+  scene.elements[0].reveal.startMs = 900; scene.elements[1].reveal.startMs = 0;
+  assert.ok(runQa(scene).warnings.some((warning) => warning.code === 'visual-path'));
+});
