@@ -2,7 +2,7 @@
 
 ## Current truth
 
-- Repository: `deeptalk-handdrawn-animation`, branch `main`.
+- Repository: `deeptalk-handdrawn-animation`, branch `main`, public remote `https://github.com/HWang0310/deeptalk-handdrawn-animation` (main tracks `origin/main`).
 - Stage: V1 SVG-first deterministic prototype has been rendered and verified locally.
 - Scope: local 16:9, 3–10 second hand-drawn explainer assets; seven benchmark scene types.
 - Core choice: SVG scene model and deterministic frame states; Canvas is not a V1 scene model. FFmpeg encodes local PNG frames when available.
