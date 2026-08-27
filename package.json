@@ -1,0 +1,19 @@
+{
+  "name": "deeptalk-handdrawn-animation",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Deterministic SVG-first hand-drawn animation research prototype.",
+  "scripts": {
+    "test": "node --test",
+    "lint": "node --check src/*.js",
+    "render:benchmarks": "node src/cli.js render-benchmarks",
+    "qa:benchmarks": "node src/cli.js qa-benchmarks"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+output/*.mp4
+output/*.png
+output/*.json
+output/contact-sheets/
+coverage/
+.DS_Store
