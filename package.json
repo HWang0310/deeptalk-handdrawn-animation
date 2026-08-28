@@ -11,11 +11,13 @@
     "render:v11": "node src/cli.js render-v11-benchmarks",
     "render:v12": "node src/cli.js render-complex-benchmarks",
     "render:v13": "node src/cli.js render-near-production",
+    "render:common": "node src/cli.js render-common-brief-trial",
     "render:primitives": "node src/cli.js render-primitive-sheet",
     "qa:benchmarks": "node src/cli.js qa-benchmarks",
     "qa:v11": "node src/cli.js qa-v11-benchmarks",
     "qa:v12": "node src/cli.js qa-complex-benchmarks",
-    "qa:v13": "node src/cli.js qa-near-production"
+    "qa:v13": "node src/cli.js qa-near-production",
+    "qa:common": "node src/cli.js qa-common-brief-trial"
   },
   "engines": {
     "node": ">=22"

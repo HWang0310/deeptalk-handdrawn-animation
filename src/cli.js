@@ -5,6 +5,7 @@ import { benchmarks, v11Benchmarks } from '../fixtures/benchmarks.js';
 import { primitiveSheet } from '../fixtures/primitive-sheet.js';
 import { complexBenchmarks } from '../fixtures/complex-benchmarks.js';
 import { nearProductionScenes } from '../fixtures/near-production.js';
+import { commonBriefCandidates } from '../fixtures/common-brief-trial.js';
 import { renderScene } from './render.js';
 import { runQa } from './qa.js';
 
@@ -54,10 +55,12 @@ export async function runCli(args, { outputRoot = resolve('output'), writeOutput
     return report;
   }
   if (command === 'qa-near-production') { const report = qaReport(nearProductionScenes, 'v1.3'); if (writeOutput) await writeReport(report, outputRoot); return report; }
+  if (command === 'qa-common-brief-trial') { const report = qaReport(commonBriefCandidates, 'common-brief-trial'); if (writeOutput) await writeReport(report, outputRoot); return report; }
   if (command === 'render-benchmarks') return renderBenchmarks(benchmarks, 'v1', outputRoot, writeOutput);
   if (command === 'render-v11-benchmarks') return renderBenchmarks(v11Benchmarks, 'v1.1', outputRoot, writeOutput);
   if (command === 'render-complex-benchmarks') return renderBenchmarks(complexBenchmarks, 'v1.2', outputRoot, writeOutput);
   if (command === 'render-near-production') return renderBenchmarks(nearProductionScenes, 'v1.3', outputRoot, writeOutput);
+  if (command === 'render-common-brief-trial') return renderBenchmarks(commonBriefCandidates, 'common-brief-trial', outputRoot, writeOutput);
   if (command === 'render-primitive-sheet') {
     const qa = runQa(primitiveSheet);
     if (!qa.passed) throw new Error('machine QA rejected primitive sheet');
