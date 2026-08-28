@@ -1,0 +1,3 @@
+# V1.3 Near-production Reuse Trial
+
+Six sanitized synthetic briefs were rendered: commercial transmission, interest tension, expansion pressure, surface versus mechanism, rule transition, and coordination constraint. They reuse actor-action-consequence, multi-actor-relation, accumulation-pressure, and before-after-transition respectively. All six are **REUSABLE**: no grammar extension and no primitive addition was required. Each uses explicit groups, staged narrative reveal, existing people/institution/document/resource/chart/emphasis families, and a 900 ms final hold. This demonstrates parameter reuse, not automatic scene generation. Media and QA remain local under `output/v1.3/`.

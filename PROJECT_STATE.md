@@ -35,3 +35,4 @@
 - The primitive vocabulary is intentionally icon-scale. It does not yet cover character poses, perspective scenes, or arbitrary illustrations. Hand overlay remains unimplemented because it is optional, not a V1.1 blocker.
 - Keep SVG-first for the next measured iteration. Before adding Remotion, benchmark a genuinely timeline-heavy scene; before adding an overlay, test it only on a small number of assets and compare readability against the no-overlay control.
 - V1.2 evidence is local at `output/v1.2/benchmarks/`: cause/mechanism/outcome, multi-actor relation, accumulation/pressure, and before/after transition. All four passed mechanical QA; composition warnings remain review candidates rather than automatic layout.
+- V1.3 renders six sanitized near-production briefs under `output/v1.3/benchmarks/`; all reuse existing V1.2 grammar without new primitives or grammar extensions.
