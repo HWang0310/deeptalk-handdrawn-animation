@@ -9,7 +9,7 @@
 | Plugin repository | `HWang0310/deeptalk-handdrawn-animation` |
 | Plugin baseline SHA (main) | `33422715f1627d7eaef7cc1ccbea7434b833d360` |
 | Core repository | `HWang0310/deep-talk-studio` |
-| Core baseline SHA (main) | `d1c990c25e44aa55ffc2789f7b00ee2374a198be` |
+| Core canonical SHA (branch `agent/multi-asset-studio`) | `d1c990c25e44aa55ffc2789f7b00ee2374a198be` |
 | Contract version | `visual-asset-plugin-contract/1` |
 | Research branch | `agent/contract-v1-runner-readiness` |
 
@@ -168,7 +168,7 @@ These are the **deterministic suitability rules** derivable from the existing ev
 2. `target_duration_ms` is 3000–10000 (matches scene schema)
 3. `canvas` is 1920×1080
 4. `language` is `zh-CN` (Chinese fallback font stack exists)
-5. The opportunity can map to one of four composition patterns or existing benchmark grammars
+5. The opportunity can map to one of the four composition patterns (named benchmark grammars are for testing only, not production generation)
 
 **BORDERLINE conditions:**
 1. The opportunity implies a hidden/emotional mechanism without a natural visual metaphor (CB06 pattern)
@@ -227,12 +227,12 @@ maps to a hand-drawn scene spec by the runner:
 | `opportunity_id` | (not in scene spec) | Used in result envelope only |
 | `spoken_semantics` | `scene.title` | Becomes the title label text (truncated if needed) |
 | `visual_purpose` | (not in scene spec) | Used to select composition grammar |
-| `target_duration_ms` | `scene.durationMs` | Direct; must be clamped to 3000–10000 |
+| `target_duration_ms` | `scene.durationMs` | Direct; must be 3000–10000. If outside range, ABSTAIN (not clamp). |
 | `language` | (implicit) | Chinese fallback font stack; if not `zh-CN`, the runner must still function but may ABSTAIN |
 | `canvas` | `scene.canvas` | Must be 1920×1080; otherwise ABSTAIN |
 | `a_roll_window` | `scene.composition` (not directly used) | Used for `suggested_placement` in generation result |
 | `semantic_context` | (not in scene spec) | May influence grammar selection |
-| `factual_context` | (not in scene spec) | Passed through to candidate provenance |
+| `factual_context` | (not in scene spec) | Not used by the runner. Provenance describes only how the asset was generated, not opportunity passthrough. |
 
 ### Grammar selection logic (proposed)
 
@@ -244,8 +244,6 @@ The runner translates `spoken_semantics` + `visual_purpose` to one of the four c
 | pressure / accumulation / threshold / bottleneck | `accumulation-pressure` |
 | relation / tension / two-party / coordination | `multi-actor-relation` |
 | before/after / rule change / transition | `before-after-transition` |
-| feedback / loop / stabilize | existing `abstract-mechanism` benchmark (not a composition pattern) |
-| numeric / metric / indicator | existing `number-label` benchmark |
 
 If no grammar matches, the runner returns ABSTAIN.
 
@@ -273,7 +271,7 @@ The contract runner builds a scene spec **deterministically from the opportunity
    const scene = {
      id: opportunity.opportunity_id,
      title: opportunity.spoken_semantics.substring(0, 40),
-     durationMs: Math.max(3000, Math.min(10000, opportunity.target_duration_ms)),
+      durationMs: opportunity.target_duration_ms,  // must be 3000–10000; suitability ABSTAINs if outside
      canvas: opportunity.canvas,
      style: { organic: { seed: `contract:${opportunity.opportunity_id}`, wobble: 1.8, widthVariance: 0.16, duplicateSketch: true } },
      motion: { finalHoldMs: 900 },
@@ -340,13 +338,27 @@ This pipeline reuses the existing `renderScene` function unchanged. The only new
 **Proposed format:**
 
 ```
-prop_<sha256(opportunity_id + plugin_id + contract_version)[:24]>
+prop_<sha256(
+  opportunity_id
+  + spoken_semantics
+  + visual_purpose
+  + target_duration_ms
+  + canvas.width + canvas.height
+  + language
+  + plugin_id
+  + plugin_version
+  + contract_version
+  + compiler_semantics_tag   // e.g. "handdrawn-svg/v1"
+)[:24]>
 ```
 
 Example: `prop_a1b2c3d4e5f6a7b8c9d0e1f2`
 
 This ensures:
-- Same opportunity + same plugin always produces the same `proposal_id`.
+- Same opportunity + same plugin + same plugin version always produces the same `proposal_id`.
+- Material opportunity content (not just the ID) is bound — two opportunities with different `spoken_semantics` or `visual_purpose` produce different IDs.
+- Plugin version is bound — a plugin upgrade produces a new `proposal_id`.
+- Compiler semantics are bound — changes to SVG compilation or composition grammar produce a new `proposal_id`.
 - Different plugins produce different `proposal_id` values (no collision).
 - No random UUID (deterministic, replayable).
 - The `proposal_id` is echoed in the generation request and generation result.
@@ -358,13 +370,26 @@ This ensures:
 **Proposed format:**
 
 ```
-cand_<sha256(proposal_id + scene.id + scene.durationMs + fps + organic_seed)[:24]>
+cand_<sha256(
+  proposal_id
+  + scene.id
+  + scene.durationMs
+  + scene.canvas.width + scene.canvas.height
+  + fps
+  + organic_seed
+  + composition_grammar
+  + plugin_version
+  + render_engine_tag   // e.g. "resvg+ffmpeg-h264"
+  + ffmpeg_flags_tag    // normalized encoding flags
+)[:24]>
 ```
 
 Example: `cand_f1e2d3c4b5a6e7f8d9c0b1a2`
 
 This ensures:
 - Same proposal + same scene + same render settings always produces the same `candidate_id`.
+- Canvas dimensions, composition grammar, and render engine are bound — changes to any of these produce a different `candidate_id`.
+- FFmpeg encoding flags are bound — changes to encoding parameters produce a different `candidate_id`.
 - A different organic seed or duration produces a different `candidate_id`.
 - Replayable: a second run with the same inputs produces the same `candidate_id`.
 
@@ -556,6 +581,8 @@ This preserves the existing fast-test guarantee.
 3. Asserts the hashes are equal.
 4. If they differ, investigates FFmpeg flags (`-fflags +genpts`, `-avoid_negative_ts make_zero`, removing metadata).
 
+**Gate status: OPEN.** MP4 binary determinism remains an open gate for the implementation phase. This document does not close it.
+
 ## 14. Chrome/Remotion dependencies
 
 ### Current state
@@ -564,17 +591,9 @@ This plugin has **NO Chrome or Remotion dependency**. The render pipeline uses:
 - `@resvg/resvg-js` (Rust SVG rasterizer, bundled native binary) — the only external dependency.
 - `ffmpeg` (system binary, invoked via `spawn`).
 
-### Comparison with other plugins
+### Integration characteristics
 
-| Plugin | Chrome | Remotion | Risk |
-|---|---|---|---|
-| deeptalk-mg | Yes (via Remotion) | Yes | Chrome version sensitivity, headless render flakiness |
-| deeptalk-illustrated-metaphor | No | No | Python-only |
-| deeptalk-handdrawn-animation | **No** | **No** | **Lowest external dependency** |
-
-### Integration advantage
-
-No Chrome/Remotion is a **significant integration advantage**:
+No Chrome/Remotion means:
 1. No browser version drift — Resvg is a pinned npm package.
 2. No headless Chrome startup/timeout risk.
 3. Simpler CI/CD — only Node.js + FFmpeg needed.
@@ -585,7 +604,7 @@ No Chrome/Remotion is a **significant integration advantage**:
 
 1. **Resvg native binary:** `@resvg/resvg-js` includes a pre-built native binary. If the target platform changes (e.g., from macOS to Linux), the correct native binary must be present. This is an npm install concern, not a runtime concern.
 2. **FFmpeg version sensitivity:** Different FFmpeg versions may produce different H.264 output. The runner should document the expected FFmpeg version (v9 per `PROJECT_STATE.md`).
-3. **Font availability:** Chinese text rendering depends on local fonts (`PingFang SC`, `Noto Sans CJK SC`, `Microsoft YaHei`). On a system without these fonts, Chinese labels may fall back to a generic sans-serif. The runner should detect font availability and ABSTAIN if no CJK font is found.
+3. **Font availability:** Chinese text rendering depends on local fonts (`PingFang SC`, `Noto Sans CJK SC`, `Microsoft YaHei`). On a system without these fonts, Chinese labels may fall back to a generic sans-serif. The runner should detect font availability and return UNAVAILABLE if no CJK font is found.
 
 ## 15. What to implement vs what NOT to refactor
 
@@ -695,11 +714,11 @@ npm test  # all existing tests unchanged
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| MP4 binary non-determinism | HIGH | Add dedicated determinism test; if it fails, add FFmpeg flags (`-fflags +genpts`, strip metadata) |
-| CJK font availability on CI | MEDIUM | Detect fonts at startup; ABSTAIN if missing. Document font requirement. |
+| MP4 binary non-determinism | HIGH (OPEN GATE) | Add dedicated determinism test; if it fails, add FFmpeg flags (`-fflags +genpts`, strip metadata) |
+| CJK font availability on CI | MEDIUM | Detect fonts at startup; return UNAVAILABLE if missing. Document font requirement. |
 | Resvg native binary on Linux CI | MEDIUM | Pin `@resvg/resvg-js` version; verify npm install on target platform |
 | `spoken_semantics` → grammar mapping ambiguity | MEDIUM | Use conservative keyword matching; default to ABSTAIN if no match |
-| `target_duration_ms` outside 3000–10000 | LOW | Clamp to range; if clamped, note in `reason` |
+| `target_duration_ms` outside 3000–10000 | LOW | Return ABSTAIN with reason |
 | FFmpeg not installed | LOW | Detect at startup; return UNAVAILABLE |
 | Contract V1 validation drift | LOW | Contract is frozen at `visual-asset-plugin-contract/1`; no drift expected |
 
@@ -707,9 +726,9 @@ npm test  # all existing tests unchanged
 
 ### Verdict: READY_FOR_IMPLEMENTATION
 
-The hand-drawn animation plugin is the **most prepared** of the three plugins for Contract V1 runner implementation:
+The hand-drawn animation plugin is ready for Contract V1 runner implementation:
 
-1. **Lowest dependency surface:** No Chrome, no Remotion, only Resvg + FFmpeg.
+1. **Low dependency surface:** No Chrome, no Remotion, only Resvg + FFmpeg.
 2. **Stable internal APIs:** `renderScene`, `runQa`, `validateScene`, `compileSvg`, `createCompositionPattern` are all exported and composable.
 3. **Existing composition grammar:** Four deterministic patterns that directly map to opportunity semantics.
 4. **Existing suitability evidence:** Common Brief Trial already encodes SUITABLE/BORDERLINE/ABSTAIN judgments.
@@ -735,7 +754,7 @@ This research document does not implement any production code. No source file in
 
 ### Core/other plugin untouched
 
-- `deep-talk-studio` repository: read-only inspection only, at canonical SHA `d1c990c25e44aa55ffc2789f7b00ee2374a198be`. No file was modified.
+- `deep-talk-studio` repository: read-only inspection only, at canonical SHA `d1c990c25e44aa55ffc2789f7b00ee2374a198be` on branch `agent/multi-asset-studio` (not Core main). No file was modified.
 - `deeptalk-mg` repository: not inspected in this session.
 - `deeptalk-illustrated-metaphor` repository: not inspected in this session.
 
