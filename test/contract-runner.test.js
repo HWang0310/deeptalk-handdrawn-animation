@@ -15,6 +15,8 @@ import {
   computeSceneDigest,
   runSuitability,
   selectGrammar,
+  sanitizeFilesystemId,
+  assertPathContainment,
   validateRequestEnvelope,
 } from '../src/contract-runner.js';
 
@@ -475,3 +477,52 @@ test('generation UNAVAILABLE: missing CJK/resvg also echoes proposal_id, no cand
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Output-dir isolation / path traversal regression (CORRECTION-2)
+// ---------------------------------------------------------------------------
+
+test('sanitizeFilesystemId: deterministic and filesystem-safe for any input', () => {
+  const cases = ['../escaped', 'foo/../../escaped', '/absolute/path', '..\\escaped', 'C:\\escaped', 'opp_cv1_safe_001', '正常中文ID'];
+  for (const raw of cases) {
+    const safe = sanitizeFilesystemId(raw);
+    assert.match(safe, /^scene_[0-9a-f]{24}$/, `unsafe ID "${raw}" → ${safe}`);
+    assert.ok(!safe.includes('/'), `safe ID must not contain /: "${safe}" from "${raw}"`);
+    assert.ok(!safe.includes('\\'), `safe ID must not contain \\: "${safe}" from "${raw}"`);
+    assert.ok(!safe.includes('..'), `safe ID must not contain ..: "${safe}" from "${raw}"`);
+    assert.ok(!safe.includes(':'), `safe ID must not contain :: "${safe}" from "${raw}"`);
+  }
+  // Determinism: same input → same output.
+  assert.equal(sanitizeFilesystemId('../escaped'), sanitizeFilesystemId('../escaped'));
+  // Different inputs → different outputs.
+  assert.notEqual(sanitizeFilesystemId('../escaped'), sanitizeFilesystemId('foo/../../escaped'));
+});
+
+test('sanitizeFilesystemId: scene.id is safe for all malicious opportunity_ids', () => {
+  const maliciousIds = ['../escaped', 'foo/../../escaped', '/absolute/path', '..\\escaped', 'C:\\escaped'];
+  for (const oppId of maliciousIds) {
+    const grammar = selectGrammar(suitableOpportunity);
+    const scene = buildScene({ ...suitableOpportunity, opportunity_id: oppId }, grammar);
+    assert.match(scene.id, /^scene_[0-9a-f]{24}$/, `scene.id for "${oppId}" must be safe: ${scene.id}`);
+    assert.ok(!scene.id.includes('/'), `scene.id must not contain /: "${scene.id}" from "${oppId}"`);
+    assert.ok(!scene.id.includes('\\'), `scene.id must not contain \\: "${scene.id}" from "${oppId}"`);
+    assert.ok(!scene.id.includes('..'), `scene.id must not contain ..: "${scene.id}" from "${oppId}"`);
+  }
+});
+
+test('assertPathContainment: rejects traversal and absolute paths', () => {
+  const dir = '/tmp/safe-output';
+  // Safe paths pass.
+  assert.doesNotThrow(() => assertPathContainment(dir, 'file.mp4', 'sub/file.png'));
+  // Traversal rejected.
+  assert.throws(() => assertPathContainment(dir, '../escaped.mp4'), /containment/);
+  assert.throws(() => assertPathContainment(dir, 'foo/../../escaped.mp4'), /containment/);
+  // Absolute rejected.
+  assert.throws(() => assertPathContainment(dir, '/absolute/path.mp4'), /containment/);
+  // Multiple traversal components rejected.
+  assert.throws(() => assertPathContainment(dir, '..', 'foo/../bar/../..'), /containment/);
+});
+
+// ---------------------------------------------------------------------------
+// Real-render path traversal regressions are in test-integration/ (require FFmpeg)
+// ---------------------------------------------------------------------------

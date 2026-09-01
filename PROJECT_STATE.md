@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'b66e263e-6b7a-4356-b4c4-3dfd0b28d8de'
-  PropagateID: 'b66e263e-6b7a-4356-b4c4-3dfd0b28d8de'
-  ReservedCode1: '34a97a89-cc9e-402a-80ab-050984a76b60'
-  ReservedCode2: '34a97a89-cc9e-402a-80ab-050984a76b60'
+  ProduceID: '071784dd-d76e-4249-8cdb-eacbd9ab518a'
+  PropagateID: '071784dd-d76e-4249-8cdb-eacbd9ab518a'
+  ReservedCode1: '86393322-a311-49b4-8bf4-e23fb67b7e05'
+  ReservedCode2: '86393322-a311-49b4-8bf4-e23fb67b7e05'
 ---
 
 # Project State
@@ -54,4 +54,5 @@ AIGC:
 - Contract V1 runner: `IMPLEMENTED_UNRELEASED` / `AWAITING_NEXUS_REVIEW`
 - implementation branch: `agent/contract-v1-runner-implementation`
 - `src/contract-runner.js` implements the Core `visual-asset-plugin-contract/1` boundary standalone: strict request envelope validation (wrong contract version / empty identifiers / incomplete opportunity / hybrid suitability request all fail closed), dynamic suitability (SUITABLE/BORDERLINE/ABSTAIN, no fixture lookup), generation with proposal_id re-validation, artifact URIs as `local-runner://<relative-path>` inside `--output-dir`, deterministic `proposal_id`/`candidate_id` bound to the full internal scene digest, atomic result writes, and UNAVAILABLE on missing ffmpeg/CJK/resvg (generation UNAVAILABLE echoes `proposal_id`).
+- CORRECTION-2 (output-dir isolation): `sanitizeFilesystemId()` derives a deterministic filesystem-safe `scene_<sha>` identifier from any `opportunity_id` (no `/`, `\`, `..`, `:`), `assertPathContainment()` validates all renderer write paths resolve inside `--output-dir` before any file is created, and `buildManifest` preserves original `opportunity_id` for Contract lineage. 6-class path traversal regression (`../escaped`, `foo/../../escaped`, `/absolute/path`, `..\escaped`, `C:\escaped`, normal) verified with real FFmpeg rendering — zero files escape `--output-dir`.
 - Not accepted/pinned/released by this repository; awaits Nexus review.

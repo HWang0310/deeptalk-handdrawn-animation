@@ -6,7 +6,7 @@
   "description": "Deterministic SVG-first hand-drawn animation research prototype.",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:integration": "node --test test-integration/contract-runner-integration.test.js test-integration/mp4-determinism.test.js",
+    "test:integration": "node --test test-integration/contract-runner-integration.test.js test-integration/mp4-determinism.test.js test-integration/path-traversal.test.js",
     "lint": "node --check src/*.js",
     "render:benchmarks": "node src/cli.js render-benchmarks",
     "render:v11": "node src/cli.js render-v11-benchmarks",

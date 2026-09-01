@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createCompositionPattern } from './composition.js';
@@ -93,6 +93,32 @@ export function computeProposalId(opportunity) {
     COMPILER_SEMANTICS_TAG,
   ];
   return `prop_${sha256Hex(...payload).slice(0, 24)}`;
+}
+
+// Deterministic filesystem-safe identifier derived from the raw opportunity_id.
+// Contract V1 only guarantees opportunity_id is non-empty text — it does NOT
+// guarantee filesystem safety. A malicious or malformed opportunity_id such as
+// "../escaped" or "C:\path" must never reach join(outputDir, scene.id + ".mp4").
+// This function produces a stable, deterministic, path-separator-free identifier
+// from any input string, so the same material input always maps to the same
+// safe filename while path traversal is structurally impossible.
+export function sanitizeFilesystemId(rawId) {
+  return `scene_${sha256Hex(String(rawId)).slice(0, 24)}`;
+}
+
+// Verify that a resolved filesystem path is strictly contained inside the
+// canonical output directory. Rejects absolute paths, ".." traversal, and
+// any resolved path that escapes the output-dir prefix. Throws on violation
+// so the caller fails closed before any file is written.
+export function assertPathContainment(outputDir, ...paths) {
+  const canonicalOutput = resolve(outputDir);
+  const canonicalOutputWithSep = canonicalOutput.endsWith(sep) ? canonicalOutput : canonicalOutput + sep;
+  for (const p of paths) {
+    const resolved = resolve(outputDir, p);
+    if (resolved !== canonicalOutput && !resolved.startsWith(canonicalOutputWithSep)) {
+      throw new Error(`path containment violation: ${p} resolves outside --output-dir`);
+    }
+  }
 }
 
 // Deterministic digest of the full internal scene (elements, groups,
@@ -186,10 +212,18 @@ export function selectGrammar(opportunity) {
 }
 
 export function buildScene(opportunity, grammar) {
-  const fragment = createCompositionPattern(grammar, { id: opportunity.opportunity_id });
+  // The internal scene.id MUST be a deterministic filesystem-safe identifier.
+  // Contract V1 only guarantees opportunity_id is non-empty text — it does not
+  // guarantee filesystem safety. Using raw opportunity_id as scene.id would let
+  // "../escaped" or "/absolute/path" influence join(outputDir, scene.id+".mp4")
+  // in render.js, creating files outside --output-dir. We derive a stable safe
+  // ID from the opportunity_id so the same input always produces the same
+  // filename, while path traversal is structurally impossible.
+  const safeSceneId = sanitizeFilesystemId(opportunity.opportunity_id);
+  const fragment = createCompositionPattern(grammar, { id: safeSceneId });
   const titleText = opportunity.spoken_semantics.trim().slice(0, MAX_TITLE_LENGTH);
   const scene = {
-    id: opportunity.opportunity_id,
+    id: safeSceneId,
     title: titleText,
     durationMs: opportunity.target_duration_ms,
     canvas: { width: opportunity.canvas.width, height: opportunity.canvas.height },
@@ -203,7 +237,7 @@ export function buildScene(opportunity, grammar) {
       readingOrder: fragment.readingOrder,
     },
     elements: [
-      { id: `${opportunity.opportunity_id}-title`, type: 'label', text: titleText, x: 30, y: 90, fontSize: 42, color: '#263238', bounds: { x: 30, y: 44, width: 760, height: 56 }, reveal: { startMs: 0, endMs: 420, easing: 'easeOut' } },
+      { id: `${safeSceneId}-title`, type: 'label', text: titleText, x: 30, y: 90, fontSize: 42, color: '#263238', bounds: { x: 30, y: 44, width: 760, height: 56 }, reveal: { startMs: 0, endMs: 420, easing: 'easeOut' } },
       ...fragment.elements,
     ],
   };
@@ -262,10 +296,11 @@ function sha256File(filePath) {
   });
 }
 
-function buildManifest(scene, frameCount, grammar) {
+function buildManifest(scene, frameCount, grammar, opportunityId) {
   return {
     manifest_version: 'handdrawn-asset-manifest/1',
     scene_id: scene.id,
+    opportunity_id: opportunityId,
     scene_title: scene.title,
     composition_grammar: grammar,
     duration_ms: scene.durationMs,
@@ -410,6 +445,19 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
     return { ...base, operation_status: 'BLOCKED', problem: { code: 'scene-build-failed', message: `无法构建场景：${error.message}`, retryability: false } };
   }
 
+  // Output-dir isolation: verify that every filesystem path the renderer will
+  // write is strictly contained inside --output-dir BEFORE any file is created.
+  // scene.id is already a deterministic filesystem-safe identifier, but we
+  // validate defensively in depth: this catches any future regression where an
+  // unsafe value might reach the write layer.
+  try {
+    assertPathContainment(outputDir,
+      `${scene.id}.mp4`, 'contact-sheet.png', 'manifest.json', 'qa.json',
+      'final-frame.png', 'frames', 'frames/frame-00000.png');
+  } catch (containmentError) {
+    return { ...base, operation_status: 'BLOCKED', problem: { code: 'output-dir-containment-violation', message: containmentError.message, retryability: false } };
+  }
+
   await mkdir(outputDir, { recursive: true });
   const render = await renderScene(scene, { outputDir, fps: FPS, encode: true });
   const mp4Path = render.mp4;
@@ -422,7 +470,7 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
 
   const manifestPath = join(outputDir, 'manifest.json');
   const qaPath = join(outputDir, 'qa.json');
-  const manifest = buildManifest(scene, render.frames.length, grammar);
+  const manifest = buildManifest(scene, render.frames.length, grammar, opportunity.opportunity_id);
   const qaResult = runQa(scene);
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(qaPath, `${JSON.stringify(qaResult, null, 2)}\n`);
