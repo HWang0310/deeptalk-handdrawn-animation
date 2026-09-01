@@ -52,10 +52,12 @@ test('integration: full pipeline produces READY candidate with real MP4', async 
     assert.ok(candidate.suggested_placement.start_ms >= 182400);
     assert.ok(candidate.suggested_placement.end_ms <= 190400);
 
-    // PRIMARY_MEDIA real MP4 with matching SHA-256.
+    // PRIMARY_MEDIA real MP4 with matching SHA-256. URI is output-dir relative.
     const primary = candidate.artifacts.find((artifact) => artifact.role === 'PRIMARY_MEDIA');
     assert.ok(primary);
-    const mp4Path = primary.uri.replace('local-runner://', '');
+    const relative = primary.uri.replace('local-runner://', '');
+    assert.ok(!relative.startsWith('/'), `PRIMARY_MEDIA uri must be relative: ${primary.uri}`);
+    const mp4Path = join(outputDir, relative);
     const mp4Stat = await stat(mp4Path);
     assert.ok(mp4Stat.size > 0);
     assert.match(primary.sha256, /^[0-9a-f]{64}$/);
@@ -144,6 +146,93 @@ test('QA_REJECTED: forced QA failure yields QA_REJECTED with QA FAILED', async (
     // QA_REJECTED still carries required fields per contract.
     assert.ok(written.candidate.candidate_id);
     assert.ok(written.candidate.qa.summary.length > 0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Core-compatible relative artifact URI regression (Correction #1)
+// ---------------------------------------------------------------------------
+
+test('integration: all artifact URIs are output-dir RELATIVE and resolve inside output-dir', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'hd-cv1-relative-uri-'));
+  try {
+    const proposalId = computeProposalId(suitableOpportunity);
+    const outputDir = join(dir, 'output');
+    const result = await runGeneration(suitableOpportunity, proposalId, outputDir);
+
+    assert.equal(result.operation_status, 'COMPLETED');
+    const roles = ['PRIMARY_MEDIA', 'PREVIEW', 'MANIFEST', 'QA_REPORT'];
+    for (const role of roles) {
+      const artifact = result.candidate.artifacts.find((item) => item.role === role);
+      assert.ok(artifact, `missing artifact role ${role}`);
+      const relative = artifact.uri.replace('local-runner://', '');
+      // Must be a relative path (no scheme, no leading slash, no drive letter).
+      assert.ok(!relative.startsWith('/'), `${role} uri must be relative, got ${artifact.uri}`);
+      assert.ok(!relative.startsWith('file:'), `${role} uri must not be a file URL: ${artifact.uri}`);
+      assert.ok(!relative.includes('..'), `${role} uri must not contain '..': ${artifact.uri}`);
+      assert.ok(!/^[A-Za-z]:[\\/]/.test(relative), `${role} uri must not be an absolute drive path: ${artifact.uri}`);
+      // Core locator semantics: strip scheme → join(outputDir, relative) →
+      // containment (relative path cannot escape outputDir) → real file exists.
+      const resolved = join(outputDir, relative);
+      const resolvedStat = await stat(resolved);
+      assert.ok(resolvedStat.size > 0, `${role} file must exist and be non-empty: ${resolved}`);
+    }
+
+    // PRIMARY_MEDIA sha256 still matches the actual file bytes (locator works).
+    const primary = result.candidate.artifacts.find((item) => item.role === 'PRIMARY_MEDIA');
+    const mp4Path = join(outputDir, primary.uri.replace('local-runner://', ''));
+    const { createHash } = await import('node:crypto');
+    const { createReadStream } = await import('node:fs');
+    const actual = await new Promise((resolvePromise, reject) => {
+      const hash = createHash('sha256');
+      const stream = createReadStream(mp4Path);
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('end', () => resolvePromise(hash.digest('hex')));
+      stream.on('error', reject);
+    });
+    assert.equal(primary.sha256, actual);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Proposal tamper generation rejection (Correction #2, CLI path)
+// ---------------------------------------------------------------------------
+
+test('integration: proposal A + modified opportunity B → FAILED, no media render', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'hd-cv1-tamper-'));
+  try {
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    const outputDir = join(dir, 'output');
+    const proposalA = computeProposalId(suitableOpportunity);
+    const opportunityB = {
+      ...suitableOpportunity,
+      opportunity_id: 'opp_cv1_tamper_002',
+      spoken_semantics: '市场扩张推动了业务规模演进',
+      visual_purpose: '解释市场扩张如何通过因果传导机制影响业务规模',
+      a_roll_window: { start_ms: 0, end_ms: 4000 },
+      target_duration_ms: 4000,
+    };
+    const request = {
+      contract_version: CONTRACT_VERSION,
+      request_id: 'req_cv1_tamper',
+      proposal_id: proposalA,
+      opportunity: opportunityB,
+    };
+    await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`);
+    await runContract(['--request', requestPath, '--result', resultPath, '--output-dir', outputDir]);
+    const result = JSON.parse(await readFile(resultPath, 'utf-8'));
+    assert.equal(result.operation_status, 'FAILED');
+    assert.equal(result.problem.code, 'proposal-mismatch');
+    assert.equal(result.candidate, undefined);
+    // No render may happen: no media files under output-dir.
+    await assert.rejects(() => stat(join(outputDir, 'manifest.json')));
+    await assert.rejects(() => stat(join(outputDir, 'qa.json')));
+    await assert.rejects(() => stat(join(outputDir, `${opportunityB.opportunity_id}.mp4`)));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'b66e263e-6b7a-4356-b4c4-3dfd0b28d8de'
+  PropagateID: 'b66e263e-6b7a-4356-b4c4-3dfd0b28d8de'
+  ReservedCode1: '34a97a89-cc9e-402a-80ab-050984a76b60'
+  ReservedCode2: '34a97a89-cc9e-402a-80ab-050984a76b60'
+---
+
 # Project State
 
 ## Current truth
@@ -36,3 +47,11 @@
 - Keep SVG-first for the next measured iteration. Before adding Remotion, benchmark a genuinely timeline-heavy scene; before adding an overlay, test it only on a small number of assets and compare readability against the no-overlay control.
 - V1.2 evidence is local at `output/v1.2/benchmarks/`: cause/mechanism/outcome, multi-actor relation, accumulation/pressure, and before/after transition. All four passed mechanical QA; composition warnings remain review candidates rather than automatic layout.
 - V1.3 renders six sanitized near-production briefs under `output/v1.3/benchmarks/`; all reuse existing V1.2 grammar without new primitives or grammar extensions.
+
+## Contract V1 runner (DT-HD-CV1-001)
+
+- TASK_ID: `DT-HD-CV1-001`
+- Contract V1 runner: `IMPLEMENTED_UNRELEASED` / `AWAITING_NEXUS_REVIEW`
+- implementation branch: `agent/contract-v1-runner-implementation`
+- `src/contract-runner.js` implements the Core `visual-asset-plugin-contract/1` boundary standalone: strict request envelope validation (wrong contract version / empty identifiers / incomplete opportunity / hybrid suitability request all fail closed), dynamic suitability (SUITABLE/BORDERLINE/ABSTAIN, no fixture lookup), generation with proposal_id re-validation, artifact URIs as `local-runner://<relative-path>` inside `--output-dir`, deterministic `proposal_id`/`candidate_id` bound to the full internal scene digest, atomic result writes, and UNAVAILABLE on missing ffmpeg/CJK/resvg (generation UNAVAILABLE echoes `proposal_id`).
+- Not accepted/pinned/released by this repository; awaits Nexus review.

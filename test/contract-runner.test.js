@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,8 +12,10 @@ import {
   buildScene,
   computeCandidateId,
   computeProposalId,
+  computeSceneDigest,
   runSuitability,
   selectGrammar,
+  validateRequestEnvelope,
 } from '../src/contract-runner.js';
 
 const suitableOpportunity = {
@@ -47,6 +49,19 @@ const headlineOpportunity = {
   language: 'zh-CN',
   canvas: { width: 1920, height: 1080 },
 };
+
+const validSuitabilityRequest = () => ({
+  contract_version: CONTRACT_VERSION,
+  request_id: 'req_env_suitability',
+  opportunity: suitableOpportunity,
+});
+
+const validGenerationRequest = () => ({
+  contract_version: CONTRACT_VERSION,
+  request_id: 'req_env_generation',
+  proposal_id: computeProposalId(suitableOpportunity),
+  opportunity: suitableOpportunity,
+});
 
 // ---------------------------------------------------------------------------
 // Constants / --version surface
@@ -139,8 +154,8 @@ test('candidate_id is deterministic for identical proposal + scene', () => {
   const proposalId = computeProposalId(suitableOpportunity);
   const grammar = selectGrammar(suitableOpportunity);
   const scene = buildScene(suitableOpportunity, grammar);
-  const first = computeCandidateId({ proposalId, scene, fps: 12 });
-  const second = computeCandidateId({ proposalId, scene, fps: 12 });
+  const first = computeCandidateId({ proposalId, scene, grammar, fps: 12 });
+  const second = computeCandidateId({ proposalId, scene, grammar, fps: 12 });
   assert.equal(first, second);
   assert.match(first, /^cand_[0-9a-f]{24}$/);
 });
@@ -151,7 +166,47 @@ test('candidate_id changes when organic seed changes', () => {
   const sceneA = buildScene(suitableOpportunity, grammar);
   const sceneB = buildScene(suitableOpportunity, grammar);
   sceneB.style.organic.seed = 'contract:different-seed';
-  assert.notEqual(computeCandidateId({ proposalId, scene: sceneA, fps: 12 }), computeCandidateId({ proposalId, scene: sceneB, fps: 12 }));
+  assert.notEqual(computeCandidateId({ proposalId, scene: sceneA, grammar, fps: 12 }), computeCandidateId({ proposalId, scene: sceneB, grammar, fps: 12 }));
+});
+
+// ---------------------------------------------------------------------------
+// Candidate identity binds full render-relevant scene state (Correction #5)
+// ---------------------------------------------------------------------------
+
+test('scene digest changes when any render-relevant scene content changes', () => {
+  const grammar = selectGrammar(suitableOpportunity);
+  const sceneA = buildScene(suitableOpportunity, grammar);
+  const sceneB = buildScene(suitableOpportunity, grammar);
+  // Changing a focal group label must change the digest and the candidate id.
+  sceneB.composition.focalGroup = 'different-focal-group';
+  assert.notEqual(computeSceneDigest(sceneA), computeSceneDigest(sceneB));
+  const proposalId = computeProposalId(suitableOpportunity);
+  assert.notEqual(
+    computeCandidateId({ proposalId, scene: sceneA, grammar, fps: 12 }),
+    computeCandidateId({ proposalId, scene: sceneB, grammar, fps: 12 }),
+  );
+});
+
+test('candidate_id changes when composition grammar changes', () => {
+  const proposalId = computeProposalId(suitableOpportunity);
+  const grammarA = 'actor-action-consequence';
+  const grammarB = 'before-after-transition';
+  const sceneA = buildScene(suitableOpportunity, grammarA);
+  const sceneB = buildScene(suitableOpportunity, grammarB);
+  assert.notEqual(
+    computeCandidateId({ proposalId, scene: sceneA, grammar: grammarA, fps: 12 }),
+    computeCandidateId({ proposalId, scene: sceneB, grammar: grammarB, fps: 12 }),
+  );
+});
+
+test('candidate_id changes when ffmpeg flags tag changes', () => {
+  const proposalId = computeProposalId(suitableOpportunity);
+  const grammar = selectGrammar(suitableOpportunity);
+  const scene = buildScene(suitableOpportunity, grammar);
+  assert.notEqual(
+    computeCandidateId({ proposalId, scene, grammar, fps: 12, ffmpegFlagsTag: 'libx264-yuv420p-faststart' }),
+    computeCandidateId({ proposalId, scene, grammar, fps: 12, ffmpegFlagsTag: 'libx264-yuv420p-faststart-crf23' }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -205,12 +260,84 @@ test('proposal_id is stable across runs (replayable)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Strict request envelope validation (Correction #4)
+// ---------------------------------------------------------------------------
+
+test('envelope: valid suitability and generation requests pass', () => {
+  assert.equal(validateRequestEnvelope(validSuitabilityRequest()), false);
+  assert.equal(validateRequestEnvelope(validGenerationRequest()), true);
+});
+
+test('envelope: wrong contract_version fails closed', () => {
+  const bad = validSuitabilityRequest();
+  bad.contract_version = 'visual-asset-plugin-contract/2';
+  assert.throws(() => validateRequestEnvelope(bad), /contract_version/);
+});
+
+test('envelope: empty or missing request_id fails closed', () => {
+  const bad = validSuitabilityRequest();
+  bad.request_id = '';
+  assert.throws(() => validateRequestEnvelope(bad), /request_id/);
+  delete bad.request_id;
+  assert.throws(() => validateRequestEnvelope(bad), /request_id/);
+});
+
+test('envelope: request with proposal_id is treated as generation (not suitability)', () => {
+  // Core contract distinguishes suitability vs generation by the presence of
+  // proposal_id. A request that carries it must route to generation.
+  assert.equal(validateRequestEnvelope(validGenerationRequest()), true);
+});
+
+test('envelope: suitability request with unknown generation-only field fails closed', () => {
+  // A suitability request must not smuggle generation-only semantics.
+  const bad = validSuitabilityRequest();
+  bad.candidate = { candidate_id: 'cand_x' };
+  assert.throws(() => validateRequestEnvelope(bad), /不允许的字段/);
+});
+
+test('envelope: generation request with empty proposal_id fails closed', () => {
+  const bad = validGenerationRequest();
+  bad.proposal_id = '';
+  assert.throws(() => validateRequestEnvelope(bad), /proposal_id/);
+});
+
+test('envelope: incomplete opportunity fails closed', () => {
+  const bad = validSuitabilityRequest();
+  bad.opportunity = { ...suitableOpportunity };
+  delete bad.opportunity.target_duration_ms;
+  assert.throws(() => validateRequestEnvelope(bad), /target_duration_ms/);
+});
+
+test('envelope: unknown top-level field fails closed', () => {
+  const bad = validSuitabilityRequest();
+  bad.extra = 'not-allowed';
+  assert.throws(() => validateRequestEnvelope(bad), /不允许的字段/);
+});
+
+test('envelope: malformed request → non-zero exit and no fabricated result', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'hd-runner-envelope-'));
+  try {
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    await writeFile(requestPath, `${JSON.stringify({ contract_version: 'visual-asset-plugin-contract/9', request_id: 'req_bad', opportunity: suitableOpportunity }, null, 2)}\n`);
+    const runnerPath = new URL('../src/contract-runner.js', import.meta.url).pathname;
+    const result = spawnSync(process.execPath, [runnerPath, '--request', requestPath, '--result', resultPath, '--output-dir', join(dir, 'output')], {
+      encoding: 'utf-8',
+    });
+    assert.notEqual(result.status, 0);
+    await assert.rejects(() => stat(resultPath));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // UNAVAILABLE fail-closed path (simulated via env capability override)
 // ---------------------------------------------------------------------------
 
 test('UNAVAILABLE: missing runtime capability yields UNAVAILABLE not ABSTAIN', async () => {
   const { spawnSync } = await import('node:child_process');
-  const { writeFile } = await import('node:fs/promises');
   const dir = await mkdtemp(join(tmpdir(), 'hd-runner-unavail-'));
   try {
     const requestPath = join(dir, 'request.json');
@@ -235,7 +362,6 @@ test('UNAVAILABLE: missing runtime capability yields UNAVAILABLE not ABSTAIN', a
 
 test('BLOCKED: scene build failure yields BLOCKED with no candidate', async () => {
   const { spawnSync } = await import('node:child_process');
-  const { writeFile } = await import('node:fs/promises');
   const dir = await mkdtemp(join(tmpdir(), 'hd-runner-blocked-'));
   try {
     const requestPath = join(dir, 'request.json');
@@ -251,6 +377,99 @@ test('BLOCKED: scene build failure yields BLOCKED with no candidate', async () =
     const written = JSON.parse(await readFile(resultPath, 'utf-8'));
     assert.equal(written.operation_status, 'BLOCKED');
     assert.equal(written.problem.code, 'scene-build-failed');
+    assert.equal(written.candidate, undefined);
+    // proposal_id is still echoed on a generation BLOCKED result.
+    assert.equal(written.proposal_id, proposalId);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Generation proposal_id re-validation (Correction #2)
+// ---------------------------------------------------------------------------
+
+test('generation: proposal tamper (proposal A + materially modified opportunity B) fails closed', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'hd-runner-tamper-'));
+  try {
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    const proposalA = computeProposalId(suitableOpportunity);
+    // Opportunity B is materially modified (different spoken_semantics), but
+    // still a valid, renderable opportunity with the same proposal A attached.
+    const opportunityB = {
+      ...suitableOpportunity,
+      opportunity_id: 'opp_cv1_syn_actor_action_002',
+      spoken_semantics: '市场扩张推动业务规模快速增长',
+      visual_purpose: '解释市场扩张如何通过因果传导机制影响业务规模',
+      a_roll_window: { start_ms: 0, end_ms: 4000 },
+      target_duration_ms: 4000,
+    };
+    await writeFile(requestPath, `${JSON.stringify({ contract_version: CONTRACT_VERSION, request_id: 'req_tamper', proposal_id: proposalA, opportunity: opportunityB }, null, 2)}\n`);
+    const runnerPath = new URL('../src/contract-runner.js', import.meta.url).pathname;
+    const result = spawnSync(process.execPath, [runnerPath, '--request', requestPath, '--result', resultPath, '--output-dir', join(dir, 'output')], {
+      encoding: 'utf-8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const written = JSON.parse(await readFile(resultPath, 'utf-8'));
+    assert.equal(written.operation_status, 'FAILED');
+    assert.equal(written.problem.code, 'proposal-mismatch');
+    assert.equal(written.candidate, undefined);
+    // No render may occur: no media artifact file should exist.
+    await assert.rejects(() => stat(join(dir, 'output', `${opportunityB.opportunity_id}.mp4`)));
+    await assert.rejects(() => stat(join(dir, 'output', 'contact-sheet.png')));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Generation UNAVAILABLE preserves proposal_id (Correction #3)
+// ---------------------------------------------------------------------------
+
+test('generation UNAVAILABLE: forced missing ffmpeg echoes proposal_id, no candidate', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'hd-runner-gen-unavail-'));
+  try {
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    const proposalId = computeProposalId(suitableOpportunity);
+    await writeFile(requestPath, `${JSON.stringify({ contract_version: CONTRACT_VERSION, request_id: 'req_gen_unavail', proposal_id: proposalId, opportunity: suitableOpportunity }, null, 2)}\n`);
+    const runnerPath = new URL('../src/contract-runner.js', import.meta.url).pathname;
+    const result = spawnSync(process.execPath, [runnerPath, '--request', requestPath, '--result', resultPath, '--output-dir', join(dir, 'output')], {
+      env: { ...process.env, HANDDRAWN_FORCE_MISSING_CAPABILITY: 'ffmpeg' },
+      encoding: 'utf-8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const written = JSON.parse(await readFile(resultPath, 'utf-8'));
+    assert.equal(written.operation_status, 'UNAVAILABLE');
+    assert.equal(written.problem.code, 'ffmpeg-missing');
+    assert.equal(written.proposal_id, proposalId);
+    assert.equal(written.candidate, undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('generation UNAVAILABLE: missing CJK/resvg also echoes proposal_id, no candidate', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const dir = await mkdtemp(join(tmpdir(), 'hd-runner-gen-unavail-'));
+  try {
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    const proposalId = computeProposalId(suitableOpportunity);
+    await writeFile(requestPath, `${JSON.stringify({ contract_version: CONTRACT_VERSION, request_id: 'req_gen_unavail_cjk', proposal_id: proposalId, opportunity: suitableOpportunity }, null, 2)}\n`);
+    const runnerPath = new URL('../src/contract-runner.js', import.meta.url).pathname;
+    const result = spawnSync(process.execPath, [runnerPath, '--request', requestPath, '--result', resultPath, '--output-dir', join(dir, 'output')], {
+      env: { ...process.env, HANDDRAWN_FORCE_MISSING_CAPABILITY: 'cjk' },
+      encoding: 'utf-8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const written = JSON.parse(await readFile(resultPath, 'utf-8'));
+    assert.equal(written.operation_status, 'UNAVAILABLE');
+    assert.equal(written.problem.code, 'cjk-font-missing');
+    assert.equal(written.proposal_id, proposalId);
     assert.equal(written.candidate, undefined);
   } finally {
     await rm(dir, { recursive: true, force: true });

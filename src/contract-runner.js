@@ -11,8 +11,9 @@
 //
 // Exit contract: the process writes exactly one JSON result to --result and
 // exits 0 only when that result is a valid Contract V1 response. Any malformed
-// request or runner infrastructure failure fails closed (non-zero exit, no
-// fake plugin result).
+// request (wrong contract version, empty identifiers, incomplete opportunity
+// envelope, unknown fields) or runner infrastructure failure fails closed
+// (non-zero exit, no fabricated plugin result).
 
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -30,7 +31,12 @@ export const PLUGIN_VERSION = 'handdrawn-animation-contract/0.1.0';
 export const CONTRACT_VERSION = 'visual-asset-plugin-contract/1';
 const COMPILER_SEMANTICS_TAG = 'handdrawn-svg/v1';
 const RENDER_ENGINE_TAG = 'resvg+ffmpeg-h264';
-const FFMPEG_FLAGS_TAG = 'libx264-yuv420p-faststart-fps12-crf23-preset-medium';
+// Normalized flags of the exact MP4 encoding command used in render.js:
+//   ffmpeg -y -framerate <fps> -i <frames> -frames:v <n> -c:v libx264 -pix_fmt yuv420p -movflags +faststart <mp4>
+// Only parameters actually fixed in that command are declared here; the fps is
+// bound separately in candidate identity. Never claim flags the command does
+// not set (e.g. crf/preset are left to FFmpeg defaults).
+const FFMPEG_FLAGS_TAG = 'libx264-yuv420p-faststart';
 const ASSET_FAMILY = 'HANDDRAWN_SVG';
 const URI_SCHEME = 'local-runner://';
 const FPS = 12;
@@ -55,6 +61,14 @@ const GRAMMAR_RULES = [
   { grammar: 'before-after-transition', signals: ['前后', '变化前', '变化后', '调整前', '调整后', '规则变化', '切换', '转变', '过渡', '升级', '新规'] },
   { grammar: 'actor-action-consequence', signals: ['因果', '导致', '引发', '传导', '机制', '后果', '影响', '结果', '作用', '推动'] },
 ];
+
+// Strict request envelope (Core contract.py): a suitability request may only
+// carry contract_version/request_id/opportunity; a generation request adds
+// proposal_id. Unknown fields are rejected so a wrong-version or hybrid
+// request fails closed instead of producing a plausible V1 result.
+const SUITABILITY_REQUEST_FIELDS = ['contract_version', 'request_id', 'opportunity'];
+const GENERATION_REQUEST_FIELDS = ['contract_version', 'request_id', 'proposal_id', 'opportunity'];
+const OPPORTUNITY_REQUIRED_FIELDS = ['opportunity_id', 'spoken_semantics', 'visual_purpose', 'a_roll_window', 'target_duration_ms', 'language', 'canvas'];
 
 // ---------------------------------------------------------------------------
 // Deterministic identifiers (readiness §7)
@@ -81,19 +95,30 @@ export function computeProposalId(opportunity) {
   return `prop_${sha256Hex(...payload).slice(0, 24)}`;
 }
 
-export function computeCandidateId({ proposalId, scene, fps }) {
+// Deterministic digest of the full internal scene (elements, groups,
+// composition, motion, style, canvas, duration). Any render-relevant scene
+// content change therefore changes the digest and the candidate identity.
+export function computeSceneDigest(scene) {
+  return sha256Hex(JSON.stringify(scene));
+}
+
+// Candidate identity binds the complete render-relevant state: proposal,
+// full internal scene digest, composition grammar, duration, canvas, fps,
+// organic seed, plugin version, render engine tag, and the normalized FFmpeg
+// flags actually used by the encoder.
+export function computeCandidateId({ proposalId, scene, grammar, fps, ffmpegFlagsTag = FFMPEG_FLAGS_TAG }) {
   const payload = [
     proposalId,
-    scene.id,
+    computeSceneDigest(scene),
+    grammar ?? '',
     String(scene.durationMs),
     String(scene.canvas.width),
     String(scene.canvas.height),
     String(fps),
     scene.style?.organic?.seed ?? '',
-    scene.composition?.focalGroup ?? '',
     PLUGIN_VERSION,
     RENDER_ENGINE_TAG,
-    FFMPEG_FLAGS_TAG,
+    ffmpegFlagsTag,
   ];
   return `cand_${sha256Hex(...payload).slice(0, 24)}`;
 }
@@ -237,11 +262,12 @@ function sha256File(filePath) {
   });
 }
 
-function buildManifest(scene, frameCount) {
+function buildManifest(scene, frameCount, grammar) {
   return {
     manifest_version: 'handdrawn-asset-manifest/1',
     scene_id: scene.id,
     scene_title: scene.title,
+    composition_grammar: grammar,
     duration_ms: scene.durationMs,
     fps: FPS,
     frame_count: frameCount,
@@ -281,6 +307,48 @@ async function readRequest(requestPath) {
   return data;
 }
 
+function assertOnlyFields(data, allowedFields, what) {
+  for (const key of Object.keys(data)) {
+    if (!allowedFields.includes(key)) {
+      throw new Error(`${what} 包含不允许的字段：${key}`);
+    }
+  }
+}
+
+// Strict request envelope validation (Core mirror). Any violation fails closed:
+// the caller throws and the process exits non-zero without writing a result.
+// Returns true when the request is a generation request (carries proposal_id).
+export function validateRequestEnvelope(requestData) {
+  if (!requestData || typeof requestData !== 'object' || Array.isArray(requestData)) throw new Error('request JSON 必须是对象');
+  if (requestData.contract_version !== CONTRACT_VERSION) {
+    throw new Error(`不支持的 contract_version：${String(requestData.contract_version)}；必须是 ${CONTRACT_VERSION}`);
+  }
+  if (typeof requestData.request_id !== 'string' || !requestData.request_id.trim()) {
+    throw new Error('request_id 必须是非空文本');
+  }
+  const isGeneration = Object.prototype.hasOwnProperty.call(requestData, 'proposal_id');
+  if (isGeneration) {
+    assertOnlyFields(requestData, GENERATION_REQUEST_FIELDS, 'generation request');
+    if (typeof requestData.proposal_id !== 'string' || !requestData.proposal_id.trim()) {
+      throw new Error('proposal_id 必须是非空文本');
+    }
+  } else {
+    // A suitability request must not carry generation-only semantics
+    // (proposal_id / candidate fields are rejected by the field whitelist).
+    assertOnlyFields(requestData, SUITABILITY_REQUEST_FIELDS, 'suitability request');
+  }
+  const opportunity = requestData.opportunity;
+  if (!opportunity || typeof opportunity !== 'object' || Array.isArray(opportunity)) {
+    throw new Error('opportunity 必须是 JSON 对象');
+  }
+  for (const field of OPPORTUNITY_REQUIRED_FIELDS) {
+    if (opportunity[field] === undefined) {
+      throw new Error(`opportunity 缺少必填字段 ${field}`);
+    }
+  }
+  return isGeneration;
+}
+
 // Suitability response: SUITABLE/BORDERLINE/ABSTAIN carry proposal_id;
 // FAILED/UNAVAILABLE carry problem and no proposal_id.
 export async function runSuitability(opportunity, requestId) {
@@ -316,7 +384,7 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
   const base = {
     contract_version: CONTRACT_VERSION,
     request_id: '',
-    opportunity_id: opportunity.opportunity_id,
+    opportunity_id: opportunity?.opportunity_id ?? '',
     proposal_id: proposalId,
     plugin_id: PLUGIN_ID,
     plugin_version: PLUGIN_VERSION,
@@ -324,6 +392,15 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
   if (assessment.status !== 'SUITABLE' && assessment.status !== 'BORDERLINE') {
     return { ...base, operation_status: 'FAILED', problem: { code: assessment.code ?? 'not-generatable', message: assessment.message, retryability: true } };
   }
+
+  // Generation must re-verify that the incoming proposal_id is exactly the
+  // deterministic proposal for the current opportunity. A mismatch fails
+  // closed with a valid FAILED result and no render happens.
+  const expectedProposalId = computeProposalId(opportunity);
+  if (expectedProposalId !== proposalId) {
+    return { ...base, operation_status: 'FAILED', problem: { code: 'proposal-mismatch', message: 'proposal_id 与当前 opportunity 不匹配，拒绝生成', retryability: true } };
+  }
+
   const grammar = selectGrammar(opportunity);
   let scene;
   try {
@@ -345,19 +422,22 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
 
   const manifestPath = join(outputDir, 'manifest.json');
   const qaPath = join(outputDir, 'qa.json');
-  const manifest = buildManifest(scene, render.frames.length);
+  const manifest = buildManifest(scene, render.frames.length, grammar);
   const qaResult = runQa(scene);
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(qaPath, `${JSON.stringify(qaResult, null, 2)}\n`);
 
-  const candidateId = computeCandidateId({ proposalId, scene, fps: FPS });
+  const candidateId = computeCandidateId({ proposalId, scene, grammar, fps: FPS });
   const durationMs = scene.durationMs;
   const window = opportunity.a_roll_window;
   const placementStart = window.start_ms;
   const placementDuration = Math.min(durationMs, window.end_ms - window.start_ms);
 
+  // Artifact URIs are output-dir RELATIVE per Core locator semantics:
+  // `local-runner://<relative-path>` where <relative-path> resolves inside
+  // --output-dir. Never embed an absolute machine path.
   const artifacts = [
-    { role: 'PRIMARY_MEDIA', uri: `${URI_SCHEME}${join(outputDir, `${scene.id}.mp4`)}`, media_type: 'video/mp4', sha256: mediaSha, duration_ms: durationMs },
+    { role: 'PRIMARY_MEDIA', uri: `${URI_SCHEME}${scene.id}.mp4`, media_type: 'video/mp4', sha256: mediaSha, duration_ms: durationMs },
     { role: 'PREVIEW', uri: `${URI_SCHEME}contact-sheet.png`, media_type: 'image/png' },
     { role: 'MANIFEST', uri: `${URI_SCHEME}manifest.json`, media_type: 'application/json' },
     { role: 'QA_REPORT', uri: `${URI_SCHEME}qa.json`, media_type: 'application/json' },
@@ -376,8 +456,11 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
   return { ...base, operation_status: 'COMPLETED', candidate };
 }
 
+// Runtime UNAVAILABLE envelope. A generation request must echo its incoming
+// proposal_id (Contract V1 requires proposal_id on every generation result,
+// including UNAVAILABLE); a suitability request carries none.
 async function writeRuntimeUnavailable(resultPath, requestData, code, message) {
-  await writeResultAtomic(resultPath, {
+  const base = {
     contract_version: CONTRACT_VERSION,
     request_id: requestData?.request_id ?? '',
     opportunity_id: requestData?.opportunity?.opportunity_id ?? '',
@@ -385,7 +468,11 @@ async function writeRuntimeUnavailable(resultPath, requestData, code, message) {
     plugin_version: PLUGIN_VERSION,
     operation_status: 'UNAVAILABLE',
     problem: { code, message, retryability: false },
-  });
+  };
+  if (requestData && Object.prototype.hasOwnProperty.call(requestData, 'proposal_id')) {
+    base.proposal_id = requestData.proposal_id;
+  }
+  await writeResultAtomic(resultPath, base);
 }
 
 // Dispatch a single request file. Returns the operation_status written.
@@ -403,46 +490,38 @@ export async function runContract(args) {
     throw new Error(`无法读取请求：${error.message}`);
   }
 
+  // Strict envelope validation: wrong contract version, missing/empty
+  // request_id, hybrid suitability request, invalid proposal_id, or an
+  // incomplete opportunity envelope all fail closed (non-zero exit, no result).
+  const isGeneration = validateRequestEnvelope(requestData);
+
   const capability = { ...await checkRuntimeCapabilities() };
   const forcedMissing = process.env.HANDDRAWN_FORCE_MISSING_CAPABILITY;
   if (forcedMissing) capability[forcedMissing] = false;
   if (!capability.ffmpeg) {
-    await writeRuntimeUnavailable(result, requestData, 'ffmpeg-missing');
+    await writeRuntimeUnavailable(result, requestData, 'ffmpeg-missing', 'FFmpeg 不可用');
     return 'UNAVAILABLE';
   }
   if (!capability.cjk) {
-    await writeRuntimeUnavailable(result, requestData, 'cjk-font-missing');
+    await writeRuntimeUnavailable(result, requestData, 'cjk-font-missing', '缺少 CJK 字体');
     return 'UNAVAILABLE';
   }
   if (!capability.resvg) {
-    await writeRuntimeUnavailable(result, requestData, 'resvg-missing');
+    await writeRuntimeUnavailable(result, requestData, 'resvg-missing', '@resvg/resvg-js 不可用');
     return 'UNAVAILABLE';
   }
 
   const opportunity = requestData.opportunity;
-  if (!opportunity || typeof opportunity !== 'object') {
-    await writeResultAtomic(result, {
-      contract_version: CONTRACT_VERSION,
-      request_id: requestData.request_id ?? '',
-      opportunity_id: '',
-      plugin_id: PLUGIN_ID,
-      plugin_version: PLUGIN_VERSION,
-      operation_status: 'FAILED',
-      problem: { code: 'invalid-opportunity', message: '请求缺少 opportunity', retryability: true },
-    });
-    return 'FAILED';
+  if (isGeneration) {
+    const generation = await runGeneration(opportunity, requestData.proposal_id, outputDir);
+    generation.request_id = requestData.request_id ?? '';
+    await writeResultAtomic(result, generation);
+    return generation.operation_status;
   }
 
-  if (!Object.prototype.hasOwnProperty.call(requestData, 'proposal_id')) {
-    const suitability = await runSuitability(opportunity, requestData.request_id ?? '');
-    await writeResultAtomic(result, suitability);
-    return suitability.operation_status;
-  }
-
-  const generation = await runGeneration(opportunity, requestData.proposal_id, outputDir);
-  generation.request_id = requestData.request_id ?? '';
-  await writeResultAtomic(result, generation);
-  return generation.operation_status;
+  const suitability = await runSuitability(opportunity, requestData.request_id ?? '');
+  await writeResultAtomic(result, suitability);
+  return suitability.operation_status;
 }
 
 export async function main(argv) {

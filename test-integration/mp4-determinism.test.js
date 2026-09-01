@@ -57,9 +57,10 @@ test('mp4 determinism: two fresh renders produce identical binary SHA-256', asyn
     const primary2 = candidate2.artifacts.find((artifact) => artifact.role === 'PRIMARY_MEDIA');
     assert.equal(primary1.sha256, primary2.sha256);
 
-    // Byte-for-byte equality of the actual MP4 files.
-    const mp41 = primary1.uri.replace('local-runner://', '');
-    const mp42 = primary2.uri.replace('local-runner://', '');
+    // Byte-for-byte equality of the actual MP4 files (relative locator resolves
+    // inside each run's own output-dir).
+    const mp41 = join(dir1, primary1.uri.replace('local-runner://', ''));
+    const mp42 = join(dir2, primary2.uri.replace('local-runner://', ''));
     const fileSha1 = await sha256File(mp41);
     const fileSha2 = await sha256File(mp42);
     assert.equal(fileSha1, fileSha2);
