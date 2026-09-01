@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '14099b6e-969c-4189-950b-67a57e78d1a4'
+  PropagateID: '14099b6e-969c-4189-950b-67a57e78d1a4'
+  ReservedCode1: '659fcb5e-d4ac-49f3-99a1-3ecdc498a76c'
+  ReservedCode2: '659fcb5e-d4ac-49f3-99a1-3ecdc498a76c'
+---
+
 # Fresh Agent Bootstrap
 
 ## Mission
@@ -6,7 +17,7 @@ Build and evaluate a standalone, local, deterministic SVG-first renderer for sho
 
 ## Non-negotiable boundaries
 
-- Do not modify `/Users/hwang/Movies/Codex工作空间/deep-talk-studio`.
+- Do not modify `/Users/hwang/Movies/Program/DeepTalk/deep-talk-studio`.
 - Do not create a cross-plugin contract or Episode-production workflow.
 - Do not copy a reference video's characters, fixed composition, prompts, or hand-overlay footage.
 - Keep generated MP4, PNG, contact sheets, and QA evidence local and gitignored.

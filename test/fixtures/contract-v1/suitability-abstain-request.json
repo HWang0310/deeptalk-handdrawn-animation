@@ -1,0 +1,13 @@
+{
+  "contract_version": "visual-asset-plugin-contract/1",
+  "request_id": "req-cv1-synthetic-abstain-001",
+  "opportunity": {
+    "opportunity_id": "opp_cv1_syn_headline_001",
+    "spoken_semantics": "本季度业绩表现强劲",
+    "visual_purpose": "给出一条判断性结论，没有需要分阶段展示的对象",
+    "a_roll_window": { "start_ms": 5000, "end_ms": 9000 },
+    "target_duration_ms": 4000,
+    "language": "zh-CN",
+    "canvas": { "width": 1920, "height": 1080 }
+  }
+}

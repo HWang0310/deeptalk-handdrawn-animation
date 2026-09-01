@@ -1,0 +1,13 @@
+{
+  "contract_version": "visual-asset-plugin-contract/1",
+  "request_id": "req_cv1_suitability_borderline_001",
+  "opportunity": {
+    "opportunity_id": "opp_cv1_syn_hidden_mech_001",
+    "spoken_semantics": "团队士气在内部悄悄变化",
+    "visual_purpose": "表达一种隐藏的内部情绪机制对整体氛围的无形影响",
+    "a_roll_window": { "start_ms": 30000, "end_ms": 38000 },
+    "target_duration_ms": 6000,
+    "language": "zh-CN",
+    "canvas": { "width": 1920, "height": 1080 }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "contract_version": "visual-asset-plugin-contract/1",
+  "request_id": "req_cv1_generation_suitable_001",
+  "proposal_id": "prop_placeholder_computed_by_runner",
+  "opportunity": {
+    "opportunity_id": "opp_cv1_syn_actor_action_001",
+    "spoken_semantics": "合同签署推动后续业务结果持续变化",
+    "visual_purpose": "解释合同签署如何通过因果传导机制影响业务结果",
+    "a_roll_window": { "start_ms": 182400, "end_ms": 190400 },
+    "target_duration_ms": 7000,
+    "language": "zh-CN",
+    "canvas": { "width": 1920, "height": 1080 },
+    "semantic_context": "展示从签约动作到业务结果之间的因果传导路径",
+    "factual_context": ["合同流程", "结果指标"]
+  }
+}
