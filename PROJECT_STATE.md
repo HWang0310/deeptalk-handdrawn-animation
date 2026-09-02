@@ -11,55 +11,71 @@ AIGC:
 
 # Project State
 
-## Current truth
+> Current operational truth. GitHub remote and exact reviewed SHAs override chat or local workspace claims.
 
-- Repository: `deeptalk-handdrawn-animation`, branch `main`, public remote `https://github.com/HWang0310/deeptalk-handdrawn-animation` (main tracks `origin/main`).
-- Stage: V1.2 scene-richness iteration adds explicit group/layer composition grammar and four rendered complex benchmarks.
-- Scope: local 16:9, 3–10 second hand-drawn explainer assets; seven benchmark scene types.
-- Core choice: SVG scene model and deterministic frame states; Canvas is not a V1 scene model. FFmpeg encodes local PNG frames when available.
-- No DeepTalk Core source, configuration, or git state has been modified.
-- Generated media is deliberately gitignored under `output/`; nested benchmark artifacts are covered by the verified `output/` rule.
+## Identity
 
-## Verified external context
+| Field | Current truth |
+| --- | --- |
+| Repository | `HWang0310/deeptalk-handdrawn-animation` |
+| Stable branch | `main` |
+| Runtime behavior baseline | `853618bdf19ae66ec393211b77d970911f53f4bc` |
+| Stage | Contract V1 runner `ACCEPTED / IMPLEMENTED_UNRELEASED`; real-generation reliability fix is the next gate before broad visual optimization |
+| Canonical runner | `node src/contract-runner.js` |
+| Product boundary | Independent Hand-drawn Animation plugin; DeepTalk Core is a separate consumer and may repin only after Nexus integration review |
+| Renderer choice | Local deterministic SVG-first scene model with FFmpeg/resvg-based artifact generation |
 
-- Node v24, FFmpeg v9, and Python 3.14 are available locally.
-- The local reference directory contains five MP4 files, research reports, transcript material, and key-frame contact sheets; it contains no implementation HTML, JavaScript, SVG, Canvas, or Remotion source.
+## Governance
 
-## Verified V1 baseline
+- `main` represents the latest plugin-local accepted stable runtime plus governance-only updates.
+- New engineering work starts from `main` on an isolated task branch and follows the current `HWang0310/engineering-journal` standards.
+- `AGENTS.md` defines mandatory bootstrap and project-specific rules.
+- `docs/DEEPTALK-INTEGRATION.md` is the non-negotiable DeepTalk compatibility gate.
+- Plugin-local acceptance never updates DeepTalk Core automatically. The plugin returns an exact SHA to DeepTalk Nexus for independent integration review.
 
-- Seven original benchmarks rendered as 1920×1080 H.264 MP4: 4s, 5s, 6s, 4s, 6s, 7s, and 8s respectively.
-- `output/v1/qa/benchmark-qa.json` reports 7 total benchmarks and 0 machine-QA failures.
-- Contact sheets and final frames were visually reviewed. A floating arrowhead issue and an opaque glow covering the lantern were found, fixed under regression tests, and re-rendered.
-- The baseline's clean, uniform stroke language is deliberately retained as the control version.
+## Verified renderer baseline
 
-## Verified V1.1 evidence
+- Local deterministic 1920×1080 H.264 benchmark rendering is established across the V1/V1.1/V1.2/V1.3 benchmark families.
+- The renderer uses explicit SVG scene/frame states; generated media is local and gitignored.
+- The current primitive vocabulary contains 17 registered items, including role/person and resource-stack variants.
+- The accepted validation correction keeps the complete primitive sheet inside the unchanged 1920×1080 canvas with existing scale and hard bounds QA.
+- Plugin-native validation at the accepted runtime baseline included unit tests, real Contract integration tests, lint, primitive-sheet rendering, benchmark rendering, and QA.
 
-- The same seven original benchmark scenes render at the same 1920×1080 target durations under `output/v1.1/benchmarks/`; `output/v1.1/qa/benchmark-qa.json` reports 7 total scenes, 0 failures, and 0 warnings. The corresponding V1 report has 8 warnings and 0 failures; V1.1 marks the intentional lantern/glow overlap explicitly.
-- Side-by-side local final frames and `output/compare/contact-sheet-v1-v11.png` were inspected. V1.1 adds a restrained second sketch pass and coordinate/width irregularity on drawing primitives while Chinese text remains unfiltered and crisp.
-- `output/v1.1/primitives/primitive-vocabulary/` now renders the original 15-item composable vocabulary plus `role-person` and `resource-stack` (17 items total): person, building, document, money bag, bulb, cloud, factory, screen, chart, emotion mark, arrow family, circle annotation, underline, cross-out, emphasis strokes, role person, and resource stack.
-- V1.1 motion uses varied ease-out, ease-in-out, and linear stroke reveals; local fills enter at deliberately varied late phases; every benchmark keeps at least a 700 ms final hold.
-- Composition assistance is warning-only for collision candidates, text spacing, focus-area coverage, semantic-overlap annotations, and final hold. Existing protected-edge and maximum-density rules remain hard mechanical QA, not automatic aesthetic layout.
+## Contract V1 runtime
 
-## Current limitations and next recommendation
+- `src/contract-runner.js` owns the standalone `visual-asset-plugin-contract/1` boundary.
+- It implements strict request validation, dynamic suitability, proposal/candidate identity, output-root containment, deterministic scene binding, atomic result writing, and fail-closed dependency/path behavior.
+- DeepTalk Phase 5 synthetic integration accepted this exact runtime baseline.
 
-- The organic treatment is controlled, not a freehand simulation: curved paths can still feel geometric, duplicate strokes become too busy if amplified, and line joins remain SVG joins rather than pressure-sensitive pen behavior.
-- The primitive vocabulary is intentionally icon-scale. It does not yet cover character poses, perspective scenes, or arbitrary illustrations. Hand overlay remains unimplemented because it is optional, not a V1.1 blocker.
-- Keep SVG-first for the next measured iteration. Before adding Remotion, benchmark a genuinely timeline-heavy scene; before adding an overlay, test it only on a small number of assets and compare readability against the no-overlay control.
-- V1.2 evidence is local at `output/v1.2/benchmarks/`: cause/mechanism/outcome, multi-actor relation, accumulation/pressure, and before/after transition. All four passed mechanical QA; composition warnings remain review candidates rather than automatic layout.
-- V1.3 renders six sanitized near-production briefs under `output/v1.3/benchmarks/`; all reuse existing V1.2 grammar without new primitives or grammar extensions.
+## Current real-generation blocker
 
-## Contract V1 runner (DT-HD-CV1-001)
+Limited real-A-roll Phase 6 owner-visible evidence exposed a plugin-local generation-completeness defect that synthetic validation did not reveal:
 
-- TASK_ID: `DT-HD-CV1-001`
-- Contract V1 runner: `IMPLEMENTED_UNRELEASED` / `AWAITING_NEXUS_REVIEW`
-- implementation branch: `agent/contract-v1-runner-implementation`
-- `src/contract-runner.js` implements the Core `visual-asset-plugin-contract/1` boundary standalone: strict request envelope validation (wrong contract version / empty identifiers / incomplete opportunity / hybrid suitability request all fail closed), dynamic suitability (SUITABLE/BORDERLINE/ABSTAIN, no fixture lookup), generation with proposal_id re-validation, artifact URIs as `local-runner://<relative-path>` inside `--output-dir`, deterministic `proposal_id`/`candidate_id` bound to the full internal scene digest, atomic result writes, and UNAVAILABLE on missing ffmpeg/CJK/resvg (generation UNAVAILABLE echoes `proposal_id`).
-- CORRECTION-2 (output-dir isolation): `sanitizeFilesystemId()` derives a deterministic filesystem-safe `scene_<sha>` identifier from any `opportunity_id` (no `/`, `\`, `..`, `:`), `assertPathContainment()` validates all renderer write paths resolve inside `--output-dir` before any file is created, and `buildManifest` preserves original `opportunity_id` for Contract lineage. 6-class path traversal regression (`../escaped`, `foo/../../escaped`, `/absolute/path`, `..\escaped`, `C:\escaped`, normal) verified with real FFmpeg rendering — zero files escape `--output-dir`.
-- Not accepted/pinned/released by this repository; awaits Nexus review.
+- a real mechanism opportunity can return `SUITABLE`;
+- generation can render a frame sequence (the observed run produced 91 frames);
+- the operation can fail before completing the Contract-required final media/manifest;
+- DeepTalk Core correctly records generation failure and exposes no `READY` candidate.
 
-## Contract V1 validation correction (DT-HD-CV1-002)
+This is the next mandatory engineering gate. Do **not** weaken Contract V1, Core acceptance, or artifact requirements to turn the failure into a false PASS.
 
-- Branch `agent/contract-v1-runner-validation-correction` keeps all 17 registered primitives, including `role-person` and `resource-stack`, on the unchanged 1920×1080 primitive sheet with the existing `0.82` scale.
-- The fixture now uses a deterministic 6-column, 3-row grid. Regression tests bind every registered primitive to a readable label and require the complete sheet to pass existing hard bounds QA with zero `bounds-overflow` findings.
-- Verified locally: 77 unit tests, 14 real Contract integration tests, lint, primitive-sheet rendering, and all V1/V1.1/V1.2/V1.3/common benchmark render and QA commands passed. The corrected final frame was reviewed at 1920×1080 with no clipping or unreadable primitive labels.
-- This plugin-local correction does not change Contract V1 schemas, runner semantics, dependencies, lockfiles, or any DeepTalk Core source/configuration/pin. It remains unreleased and awaits Nexus exact-SHA review.
+## Required next sequence
+
+### Stage 1 — reliability first
+
+- reproduce the real generation-completeness failure with a sanitized dynamic Contract V1 request representative of the Phase 6 shape;
+- add a failing regression;
+- complete final media + manifest generation for valid mechanism requests;
+- preserve fail-closed behavior and all existing path/primitive-sheet QA;
+- pass native tests/lint/render/QA and DeepTalk compatibility checks.
+
+### Stage 2 — visual quality after reliability PASS
+
+- improve expressiveness/readability of project-owned primitives and compositions;
+- improve motion rhythm and primitive combinations;
+- expand supported semantic grammar carefully;
+- prefer `ABSTAIN` over filler when no useful grammar exists;
+- provide creator-visible before/after media/contact sheets for Owner review.
+
+## Current next gate
+
+Start an independent Hand-drawn Curator session from repository Recovery Issue #1. The first formal implementation task must address the real generation-completeness blocker before broad aesthetic optimization is accepted. Any new runtime handed back to DeepTalk requires an exact SHA, native validation, Contract V1 compatibility, and an independent DeepTalk Nexus integration review.
