@@ -30,6 +30,17 @@ At the beginning of every Curator or engineering task:
 - GitHub remote exact SHA is engineering truth. Agent self-report does not equal acceptance.
 - Default to one Writer. Parallel Writers require isolated branches/worktrees, no shared mutable state, and no overlapping critical files.
 
+## GitHub-native internal handoff
+
+- This Hand-drawn Animation repository is the canonical durable engineering handoff channel between the browser ChatGPT plugin Curator and engineering Agents.
+- Every formal Task ID must be recoverable from repository-native facts: task/issue context when used, branch/worktree, pushed commit(s), remote exact SHA, relevant diff, validation evidence, and Curator Review outcome.
+- Normal Agent completion flow is: implement -> validate -> commit -> push -> expose branch + exact SHA. Agent self-report never replaces remote verification.
+- When the plugin Curator can access GitHub, the Owner should normally need to report only `Agent + Task ID completed` (or equivalent short completion signal). The Curator must then inspect this repository's remote branch, exact SHA, diff, tests/render/QA evidence, and project state directly.
+- Do not require the Owner to relay long technical handoffs when the same durable facts are available in GitHub. If critical evidence exists only locally, request only the minimal supplemental evidence needed and record the resulting durable decision/state back in GitHub.
+- ChatGPT, Codex, TeleAgent, or other Agent chat transcripts are not canonical project memory and should not be copied wholesale into the repository. Preserve durable engineering facts and decisions, not full conversations.
+- `PROJECT_STATE.md` stores current operational truth; `HANDOFF.md` stores important chronological history/evidence; issues/PRs/commits carry task-specific traceability as appropriate.
+- Plugin-internal handoff is separate from cross-project handback. After plugin-local acceptance, use the defined `PLUGIN_OPTIMIZATION_READY` protocol; only DeepTalk Nexus may independently review integration and repin Core.
+
 ## Mission and boundaries
 
 - This repository owns the independent local deterministic SVG-first Hand-drawn Animation plugin. It is not DeepTalk Core.
