@@ -36,7 +36,7 @@ AIGC:
 
 - The same seven original benchmark scenes render at the same 1920×1080 target durations under `output/v1.1/benchmarks/`; `output/v1.1/qa/benchmark-qa.json` reports 7 total scenes, 0 failures, and 0 warnings. The corresponding V1 report has 8 warnings and 0 failures; V1.1 marks the intentional lantern/glow overlap explicitly.
 - Side-by-side local final frames and `output/compare/contact-sheet-v1-v11.png` were inspected. V1.1 adds a restrained second sketch pass and coordinate/width irregularity on drawing primitives while Chinese text remains unfiltered and crisp.
-- `output/v1.1/primitives/primitive-vocabulary/` renders a 15-item original, composable primitive sheet: person, building, document, money bag, bulb, cloud, factory, screen, chart, emotion mark, arrow family, circle annotation, underline, cross-out, and emphasis strokes.
+- `output/v1.1/primitives/primitive-vocabulary/` now renders the original 15-item composable vocabulary plus `role-person` and `resource-stack` (17 items total): person, building, document, money bag, bulb, cloud, factory, screen, chart, emotion mark, arrow family, circle annotation, underline, cross-out, emphasis strokes, role person, and resource stack.
 - V1.1 motion uses varied ease-out, ease-in-out, and linear stroke reveals; local fills enter at deliberately varied late phases; every benchmark keeps at least a 700 ms final hold.
 - Composition assistance is warning-only for collision candidates, text spacing, focus-area coverage, semantic-overlap annotations, and final hold. Existing protected-edge and maximum-density rules remain hard mechanical QA, not automatic aesthetic layout.
 
@@ -56,3 +56,10 @@ AIGC:
 - `src/contract-runner.js` implements the Core `visual-asset-plugin-contract/1` boundary standalone: strict request envelope validation (wrong contract version / empty identifiers / incomplete opportunity / hybrid suitability request all fail closed), dynamic suitability (SUITABLE/BORDERLINE/ABSTAIN, no fixture lookup), generation with proposal_id re-validation, artifact URIs as `local-runner://<relative-path>` inside `--output-dir`, deterministic `proposal_id`/`candidate_id` bound to the full internal scene digest, atomic result writes, and UNAVAILABLE on missing ffmpeg/CJK/resvg (generation UNAVAILABLE echoes `proposal_id`).
 - CORRECTION-2 (output-dir isolation): `sanitizeFilesystemId()` derives a deterministic filesystem-safe `scene_<sha>` identifier from any `opportunity_id` (no `/`, `\`, `..`, `:`), `assertPathContainment()` validates all renderer write paths resolve inside `--output-dir` before any file is created, and `buildManifest` preserves original `opportunity_id` for Contract lineage. 6-class path traversal regression (`../escaped`, `foo/../../escaped`, `/absolute/path`, `..\escaped`, `C:\escaped`, normal) verified with real FFmpeg rendering — zero files escape `--output-dir`.
 - Not accepted/pinned/released by this repository; awaits Nexus review.
+
+## Contract V1 validation correction (DT-HD-CV1-002)
+
+- Branch `agent/contract-v1-runner-validation-correction` keeps all 17 registered primitives, including `role-person` and `resource-stack`, on the unchanged 1920×1080 primitive sheet with the existing `0.82` scale.
+- The fixture now uses a deterministic 6-column, 3-row grid. Regression tests bind every registered primitive to a readable label and require the complete sheet to pass existing hard bounds QA with zero `bounds-overflow` findings.
+- Verified locally: 77 unit tests, 14 real Contract integration tests, lint, primitive-sheet rendering, and all V1/V1.1/V1.2/V1.3/common benchmark render and QA commands passed. The corrected final frame was reviewed at 1920×1080 with no clipping or unreadable primitive labels.
+- This plugin-local correction does not change Contract V1 schemas, runner semantics, dependencies, lockfiles, or any DeepTalk Core source/configuration/pin. It remains unreleased and awaits Nexus exact-SHA review.

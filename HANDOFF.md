@@ -25,3 +25,11 @@ V1 uses `output/v1/`; V1.1 uses `output/v1.1/`. Both local QA reports contain 7 
 ## 2026-08-27 — V1.2 scene richness
 
 V1.2 adds explicit group/layer/role metadata and four deterministic composition patterns. Four richer original scenes render locally under `output/v1.2/benchmarks/`; V1/V1.1 remain regression controls. Scene QA remains warning-only for composition candidates, and no scene is auto-rearranged. DeepTalk Core remains untouched.
+
+## 2026-09-02 — DT-HD-CV1-002 primitive-sheet validation correction
+
+The Contract V1 accepted pin exposed a plugin-local fixture regression: adding `role-person` and `resource-stack` raised the vocabulary to 17 items, while the primitive sheet still used a fixed five-column layout whose fourth row crossed the protected 1920×1080 bounds. Existing hard machine QA correctly rejected the sheet.
+
+The correction retains all 17 primitives, the 1920×1080 canvas, the existing 0.82 primitive scale, and all QA rules. A minimal deterministic six-column/three-row grid keeps primitives and Chinese labels visible inside the protected canvas margin. New tests require complete `primitiveNames` coverage, one readable label per primitive, `runQa(primitiveSheet).passed === true`, and zero bounds-overflow findings, so a future vocabulary addition cannot silently move a row outside the canvas.
+
+All repository validation gates passed after the correction: 77 unit tests, 14 real integration tests, lint, the primitive-sheet render, and the V1, V1.1, V1.2, V1.3, and common-brief render/QA suites. Original-resolution review found no clipping or unreadable labels. No Contract schema, runner semantics, dependency, lockfile, Core source/configuration, or Core pin changed.

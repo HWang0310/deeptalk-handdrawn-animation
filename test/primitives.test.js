@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { createPrimitive, primitiveNames } from '../src/primitives.js';
 import { primitiveSheet } from '../fixtures/primitive-sheet.js';
+import { runQa } from '../src/qa.js';
 import { validateScene } from '../src/schema.js';
 
 test('provides the original V1.1 primitive vocabulary needed for explainers', () => {
@@ -28,4 +29,26 @@ test('builds a local primitive sheet that is a valid original render scene', () 
   assert.equal(primitiveSheet.durationMs, 10000);
   assert.ok(primitiveSheet.elements.length > primitiveNames.length);
   assert.equal(validateScene(primitiveSheet).id, 'primitive-vocabulary');
+});
+
+test('primitive sheet covers every registered primitive and its readable label', () => {
+  for (const name of primitiveNames) {
+    assert.ok(
+      primitiveSheet.elements.some((element) => element.id.startsWith(`${name}-`) && element.id !== `${name}-label`),
+      `${name} must appear on the primitive sheet`,
+    );
+    assert.ok(
+      primitiveSheet.elements.some((element) => element.id === `${name}-label` && element.text?.trim()),
+      `${name} must keep a readable primitive-sheet label`,
+    );
+  }
+});
+
+test('primitive sheet keeps the complete vocabulary inside hard canvas bounds', () => {
+  const qa = runQa(primitiveSheet);
+  const boundsOverflow = qa.findings.filter((finding) => finding.code === 'bounds-overflow');
+
+  assert.deepEqual(boundsOverflow, [], 'adding a primitive must not silently push the final row outside the canvas');
+  assert.equal(qa.checks.boundsWithinMargin, true);
+  assert.equal(qa.passed, true);
 });
