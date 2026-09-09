@@ -459,49 +459,61 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
   }
 
   await mkdir(outputDir, { recursive: true });
-  const render = await renderScene(scene, { outputDir, fps: FPS, encode: true });
-  const mp4Path = render.mp4;
-  const mediaSha = await sha256File(mp4Path);
 
-  // Test hook: force a QA failure to exercise the QA_REJECTED envelope shape.
-  if (process.env.HANDDRAWN_FORCE_QA_FAIL === '1') {
-    scene.elements[0].bounds = { x: -500, y: -500, width: 100, height: 100 };
+  // Render the scene, encode media, write manifest/QA, and assemble the
+  // candidate. Any failure in this pipeline (e.g. ffmpeg encoding error,
+  // disk-full, timeout kill, resvg rasterization failure) must produce a
+  // valid FAILED result envelope — NOT an uncaught exception that crashes
+  // the process with exit 1 and no result.json. Before this fix, a real
+  // Phase 6 generation could render 91 frames then fail at MP4 encoding,
+  // leaving DeepTalk Core with a non_zero_exit and no Contract V1 result.
+  try {
+    const render = await renderScene(scene, { outputDir, fps: FPS, encode: true });
+    const mp4Path = render.mp4;
+    const mediaSha = await sha256File(mp4Path);
+
+    // Test hook: force a QA failure to exercise the QA_REJECTED envelope shape.
+    if (process.env.HANDDRAWN_FORCE_QA_FAIL === '1') {
+      scene.elements[0].bounds = { x: -500, y: -500, width: 100, height: 100 };
+    }
+
+    const manifestPath = join(outputDir, 'manifest.json');
+    const qaPath = join(outputDir, 'qa.json');
+    const manifest = buildManifest(scene, render.frames.length, grammar, opportunity.opportunity_id);
+    const qaResult = runQa(scene);
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    await writeFile(qaPath, `${JSON.stringify(qaResult, null, 2)}\n`);
+
+    const candidateId = computeCandidateId({ proposalId, scene, grammar, fps: FPS });
+    const durationMs = scene.durationMs;
+    const window = opportunity.a_roll_window;
+    const placementStart = window.start_ms;
+    const placementDuration = Math.min(durationMs, window.end_ms - window.start_ms);
+
+    // Artifact URIs are output-dir RELATIVE per Core locator semantics:
+    // `local-runner://<relative-path>` where <relative-path> resolves inside
+    // --output-dir. Never embed an absolute machine path.
+    const artifacts = [
+      { role: 'PRIMARY_MEDIA', uri: `${URI_SCHEME}${scene.id}.mp4`, media_type: 'video/mp4', sha256: mediaSha, duration_ms: durationMs },
+      { role: 'PREVIEW', uri: `${URI_SCHEME}contact-sheet.png`, media_type: 'image/png' },
+      { role: 'MANIFEST', uri: `${URI_SCHEME}manifest.json`, media_type: 'application/json' },
+      { role: 'QA_REPORT', uri: `${URI_SCHEME}qa.json`, media_type: 'application/json' },
+    ];
+    const candidate = {
+      candidate_id: candidateId,
+      asset_family: ASSET_FAMILY,
+      candidate_status: qaResult.passed ? 'READY' : 'QA_REJECTED',
+      duration_ms: durationMs,
+      suggested_placement: { start_ms: placementStart, end_ms: placementStart + placementDuration },
+      artifacts,
+      qa: { status: qaResult.passed ? 'PASSED' : 'FAILED', summary: qaResult.passed ? '所有机器 QA 检查通过' : `QA 发现 ${qaResult.findings.length} 个问题` },
+      provenance: { origin: 'plugin-generated', source_ref: COMPILER_SEMANTICS_TAG },
+      plugin_metadata: {},
+    };
+    return { ...base, operation_status: 'COMPLETED', candidate };
+  } catch (renderError) {
+    return { ...base, operation_status: 'FAILED', problem: { code: 'render-failed', message: `渲染或媒体生成失败：${renderError.message}`, retryability: true } };
   }
-
-  const manifestPath = join(outputDir, 'manifest.json');
-  const qaPath = join(outputDir, 'qa.json');
-  const manifest = buildManifest(scene, render.frames.length, grammar, opportunity.opportunity_id);
-  const qaResult = runQa(scene);
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  await writeFile(qaPath, `${JSON.stringify(qaResult, null, 2)}\n`);
-
-  const candidateId = computeCandidateId({ proposalId, scene, grammar, fps: FPS });
-  const durationMs = scene.durationMs;
-  const window = opportunity.a_roll_window;
-  const placementStart = window.start_ms;
-  const placementDuration = Math.min(durationMs, window.end_ms - window.start_ms);
-
-  // Artifact URIs are output-dir RELATIVE per Core locator semantics:
-  // `local-runner://<relative-path>` where <relative-path> resolves inside
-  // --output-dir. Never embed an absolute machine path.
-  const artifacts = [
-    { role: 'PRIMARY_MEDIA', uri: `${URI_SCHEME}${scene.id}.mp4`, media_type: 'video/mp4', sha256: mediaSha, duration_ms: durationMs },
-    { role: 'PREVIEW', uri: `${URI_SCHEME}contact-sheet.png`, media_type: 'image/png' },
-    { role: 'MANIFEST', uri: `${URI_SCHEME}manifest.json`, media_type: 'application/json' },
-    { role: 'QA_REPORT', uri: `${URI_SCHEME}qa.json`, media_type: 'application/json' },
-  ];
-  const candidate = {
-    candidate_id: candidateId,
-    asset_family: ASSET_FAMILY,
-    candidate_status: qaResult.passed ? 'READY' : 'QA_REJECTED',
-    duration_ms: durationMs,
-    suggested_placement: { start_ms: placementStart, end_ms: placementStart + placementDuration },
-    artifacts,
-    qa: { status: qaResult.passed ? 'PASSED' : 'FAILED', summary: qaResult.passed ? '所有机器 QA 检查通过' : `QA 发现 ${qaResult.findings.length} 个问题` },
-    provenance: { origin: 'plugin-generated', source_ref: COMPILER_SEMANTICS_TAG },
-    plugin_metadata: {},
-  };
-  return { ...base, operation_status: 'COMPLETED', candidate };
 }
 
 // Runtime UNAVAILABLE envelope. A generation request must echo its incoming
