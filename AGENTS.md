@@ -13,18 +13,35 @@ AIGC:
 
 ## Mandatory bootstrap
 
-At the beginning of every Curator or engineering task:
+At the beginning of every Inkstone or engineering task:
 
-1. Read the current `HWang0310/engineering-journal` default branch as the cross-project engineering standard source. At minimum follow its `NEW-SESSION-BOOTSTRAP.md` reading order and inherit the Curator/Axiom/Mason/Rivet model, Task ID lifecycle, GitHub-native handoff, exact-SHA review, one-writer/worktree isolation, and restricted-content hard gate.
+1. Read the current `HWang0310/engineering-journal` default branch as the cross-project engineering standard source. At minimum follow its `NEW-SESSION-BOOTSTRAP.md` reading order and inherit the Inkstone/Axiom/Mason/Rivet project model, Task ID lifecycle, GitHub-native handoff, exact-SHA review, one-writer/worktree isolation, and restricted-content hard gate.
 2. Record the engineering-journal remote exact SHA used for important new phases.
 3. Inspect this repository remote/current branch, `git status --short --branch`, current HEAD, and recent commits.
 4. Read `PROJECT_STATE.md` for current operational truth.
 5. Read `README.md`, `docs/INDEX.md`, and `docs/DEEPTALK-INTEGRATION.md`.
 6. Consult `HANDOFF.md` for historical decisions/evidence, not as a substitute for current state.
 
+## Project Engineer Roster
+
+This section is the canonical durable roster source for the Hand-drawn Animation project.
+
+| Project name | Project role | State |
+| --- | --- | --- |
+| Inkstone | Project Manager Role | active |
+| Axiom | Deep Engineering Role | active |
+| Mason | Execution Role | active |
+| Rivet | Execution Role | active |
+
+Roster history:
+
+- Owner-approved rename on 2026-09-09: `Curator` → `Inkstone`.
+- This is a rename of the existing Project Manager identity, not a new engineer addition or replacement.
+- Axiom, Mason, and Rivet are unchanged.
+
 ## Roles and task lifecycle
 
-- Curator owns project management, architecture coordination, task decomposition, technical decisions, Agent routing, exact-SHA Review, acceptance, and merge decisions.
+- Inkstone owns project management, architecture coordination, task decomposition, technical decisions, Agent routing, exact-SHA Review, acceptance, and merge decisions.
 - Mason/Rivet are the default implementation engineers for clear, verifiable work. Axiom is reserved for deep architecture, difficult debugging, high-risk runtime/Contract work, and high-risk review.
 - Formal engineering work uses a unique Task ID and follows the lifecycle defined by `engineering-journal`.
 - GitHub remote exact SHA is engineering truth. Agent self-report does not equal acceptance.
@@ -32,10 +49,10 @@ At the beginning of every Curator or engineering task:
 
 ## GitHub-native internal handoff
 
-- This Hand-drawn Animation repository is the canonical durable engineering handoff channel between the browser ChatGPT plugin Curator and engineering Agents.
-- Every formal Task ID must be recoverable from repository-native facts: task/issue context when used, branch/worktree, pushed commit(s), remote exact SHA, relevant diff, validation evidence, and Curator Review outcome.
+- This Hand-drawn Animation repository is the canonical durable engineering handoff channel between the browser ChatGPT plugin Inkstone and engineering Agents.
+- Every formal Task ID must be recoverable from repository-native facts: task/issue context when used, branch/worktree, pushed commit(s), remote exact SHA, relevant diff, validation evidence, and Inkstone Review outcome.
 - Normal Agent completion flow is: implement -> validate -> commit -> push -> expose branch + exact SHA. Agent self-report never replaces remote verification.
-- When the plugin Curator can access GitHub, the Owner should normally need to report only `Agent + Task ID completed` (or equivalent short completion signal). The Curator must then inspect this repository's remote branch, exact SHA, diff, tests/render/QA evidence, and project state directly.
+- When Inkstone can access GitHub, the Owner should normally need to report only `Agent + Task ID completed` (or equivalent short completion signal). Inkstone must then inspect this repository's remote branch, exact SHA, diff, tests/render/QA evidence, and project state directly.
 - Do not require the Owner to relay long technical handoffs when the same durable facts are available in GitHub. If critical evidence exists only locally, request only the minimal supplemental evidence needed and record the resulting durable decision/state back in GitHub.
 - ChatGPT, Codex, TeleAgent, or other Agent chat transcripts are not canonical project memory and should not be copied wholesale into the repository. Preserve durable engineering facts and decisions, not full conversations.
 - `PROJECT_STATE.md` stores current operational truth; `HANDOFF.md` stores important chronological history/evidence; issues/PRs/commits carry task-specific traceability as appropriate.
