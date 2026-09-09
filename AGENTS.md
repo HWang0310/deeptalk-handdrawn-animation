@@ -24,7 +24,7 @@ At the beginning of every Inkstone or engineering task:
 
 ## Project Engineer Roster
 
-This section is the canonical durable roster source for the Hand-drawn Animation project.
+This section is the **sole canonical durable roster source** for the Hand-drawn Animation project.
 
 | Project name | Project role | State |
 | --- | --- | --- |
