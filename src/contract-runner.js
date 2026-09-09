@@ -16,7 +16,7 @@
 // (non-zero exit, no fabricated plugin result).
 
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { createReadStream, writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -516,6 +516,73 @@ export async function runGeneration(opportunity, proposalId, outputDir) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Signal handler: write a FAILED result.json when the process is terminated
+// by an external signal (e.g. DeepTalk Core timeout SIGTERM).
+// ---------------------------------------------------------------------------
+
+// Singleton: set by runContract() so the signal handler knows where to write.
+let _signalResultPath = null;
+let _signalRequestData = null;
+let _signalHandlerInstalled = false;
+let _resultWritten = false;
+
+export function _resetSignalState() {
+  _signalResultPath = null;
+  _signalRequestData = null;
+  _signalHandlerInstalled = false;
+  _resultWritten = false;
+}
+
+export function markResultWritten() {
+  _resultWritten = true;
+}
+
+function installSignalHandlers(resultPath, requestData) {
+  if (_signalHandlerInstalled) return;
+  _signalResultPath = resultPath;
+  _signalRequestData = requestData;
+  _signalHandlerInstalled = true;
+
+  const handler = (signal) => {
+    // If a result was already written by the normal path, exit cleanly.
+    if (_resultWritten) {
+      process.exitCode = 0;
+      return;
+    }
+    // Try to write a FAILED result.json before exiting.
+    const base = {
+      contract_version: CONTRACT_VERSION,
+      request_id: _signalRequestData?.request_id ?? '',
+      opportunity_id: _signalRequestData?.opportunity?.opportunity_id ?? '',
+      plugin_id: PLUGIN_ID,
+      plugin_version: PLUGIN_VERSION,
+      operation_status: 'FAILED',
+      problem: { code: 'terminated', message: `进程被信号 ${signal} 终止，生成中断`, retryability: true },
+    };
+    if (_signalRequestData && Object.prototype.hasOwnProperty.call(_signalRequestData, 'proposal_id')) {
+      base.proposal_id = _signalRequestData.proposal_id;
+    }
+    try {
+      // Synchronous atomic write: write tmp then rename.
+      // We're in a sync signal handler so async APIs are unsafe.
+      const dir = dirname(_signalResultPath);
+      mkdirSync(dir, { recursive: true });
+      const tmpPath = `${_signalResultPath}.tmp`;
+      writeFileSync(tmpPath, `${JSON.stringify(base, null, 2)}\n`, 'utf-8');
+      renameSync(tmpPath, _signalResultPath);
+    } catch {
+      // If we can't write, fall through to exit.
+    }
+    // Must exit immediately — the async pipeline is still running and
+    // would otherwise overwrite the FAILED result with a COMPLETED one.
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => handler('SIGTERM'));
+  process.on('SIGINT', () => handler('SIGINT'));
+}
+
 // Runtime UNAVAILABLE envelope. A generation request must echo its incoming
 // proposal_id (Contract V1 requires proposal_id on every generation result,
 // including UNAVAILABLE); a suitability request carries none.
@@ -550,6 +617,12 @@ export async function runContract(args) {
     throw new Error(`无法读取请求：${error.message}`);
   }
 
+  // Install signal handlers now that we know the result path and request data.
+  // If Core's timeout sends SIGTERM to our process group, the handler writes
+  // a FAILED result.json before exiting — instead of dying with signal and
+  // leaving Core with a non_zero_exit and no Contract V1 result.
+  installSignalHandlers(result, requestData);
+
   // Strict envelope validation: wrong contract version, missing/empty
   // request_id, hybrid suitability request, invalid proposal_id, or an
   // incomplete opportunity envelope all fail closed (non-zero exit, no result).
@@ -560,14 +633,17 @@ export async function runContract(args) {
   if (forcedMissing) capability[forcedMissing] = false;
   if (!capability.ffmpeg) {
     await writeRuntimeUnavailable(result, requestData, 'ffmpeg-missing', 'FFmpeg 不可用');
+    markResultWritten();
     return 'UNAVAILABLE';
   }
   if (!capability.cjk) {
     await writeRuntimeUnavailable(result, requestData, 'cjk-font-missing', '缺少 CJK 字体');
+    markResultWritten();
     return 'UNAVAILABLE';
   }
   if (!capability.resvg) {
     await writeRuntimeUnavailable(result, requestData, 'resvg-missing', '@resvg/resvg-js 不可用');
+    markResultWritten();
     return 'UNAVAILABLE';
   }
 
@@ -576,11 +652,13 @@ export async function runContract(args) {
     const generation = await runGeneration(opportunity, requestData.proposal_id, outputDir);
     generation.request_id = requestData.request_id ?? '';
     await writeResultAtomic(result, generation);
+    markResultWritten();
     return generation.operation_status;
   }
 
   const suitability = await runSuitability(opportunity, requestData.request_id ?? '');
   await writeResultAtomic(result, suitability);
+  markResultWritten();
   return suitability.operation_status;
 }
 
@@ -589,6 +667,7 @@ export async function main(argv) {
     process.stdout.write(PLUGIN_VERSION);
     return 0;
   }
+  _resetSignalState();
   try {
     await runContract(argv);
     return 0;

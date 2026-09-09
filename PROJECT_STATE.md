@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '071784dd-d76e-4249-8cdb-eacbd9ab518a'
-  PropagateID: '071784dd-d76e-4249-8cdb-eacbd9ab518a'
-  ReservedCode1: '86393322-a311-49b4-8bf4-e23fb67b7e05'
-  ReservedCode2: '86393322-a311-49b4-8bf4-e23fb67b7e05'
+  ProduceID: '7617cf7d-3695-484f-b81b-291381041f6f'
+  PropagateID: '7617cf7d-3695-484f-b81b-291381041f6f'
+  ReservedCode1: 'd632913c-8e4b-4e45-b6fc-d1578eb4a164'
+  ReservedCode2: 'd632913c-8e4b-4e45-b6fc-d1578eb4a164'
 ---
 
 # Project State
@@ -20,7 +20,7 @@ AIGC:
 | Repository | `HWang0310/deeptalk-handdrawn-animation` |
 | Stable branch | `main` |
 | Runtime behavior baseline | `853618bdf19ae66ec393211b77d970911f53f4bc` |
-| Stage | Contract V1 runner `ACCEPTED / IMPLEMENTED_UNRELEASED`; real-generation reliability fix is the next gate before broad visual optimization |
+| Stage | Contract V1 runner `ACCEPTED / IMPLEMENTED_UNRELEASED`; Stage 1 reliability fix accepted and pending DeepTalk Nexus integration review |
 | Canonical runner | `node src/contract-runner.js` |
 | Product boundary | Independent Hand-drawn Animation plugin; DeepTalk Core is a separate consumer and may repin only after Nexus integration review |
 | Renderer choice | Local deterministic SVG-first scene model with FFmpeg/resvg-based artifact generation |
@@ -49,14 +49,21 @@ AIGC:
 
 ## Current real-generation blocker
 
-Limited real-A-roll Phase 6 owner-visible evidence exposed a plugin-local generation-completeness defect that synthetic validation did not reveal:
+### Root cause (DT-HD-CV1-003, established 2026-09-09)
 
-- a real mechanism opportunity can return `SUITABLE`;
-- generation can render a frame sequence (the observed run produced 91 frames);
-- the operation can fail before completing the Contract-required final media/manifest;
+DeepTalk Core uses `subprocess.Popen(timeout=120, start_new_session=True)` to run the plugin. When the timeout fires, Core sends SIGTERM to the entire process group via `os.killpg()`. The Node process had **no SIGTERM handler**, so it exited immediately (default behavior) without writing `result.json` — even though frames had already been rendered to disk. Core correctly recorded this as a `non_zero_exit` generation failure with no `READY` candidate.
+
+The original Phase 6 evidence is consistent with this mechanism:
+- 91 frames were rendered (frame rasterization completed before timeout);
+- the operation failed before completing the Contract-required final media/manifest (ffmpeg was interrupted by the same SIGTERM);
 - DeepTalk Core correctly records generation failure and exposes no `READY` candidate.
 
-This is the next mandatory engineering gate. Do **not** weaken Contract V1, Core acceptance, or artifact requirements to turn the failure into a false PASS.
+### Fix (accepted on `fix/dt-hd-cv1-003-generation-completeness`)
+
+1. **try/catch** around render → encode → manifest/QA → candidate assembly in `runGeneration()`: catches non-signal render-pipeline errors (ffmpeg non-zero exit, resvg error, disk-full) and returns a valid `FAILED` envelope instead of exit 1 with no result.
+2. **SIGTERM/SIGINT signal handler** in `runContract()`: when Core's timeout kills the process group, the handler writes a `FAILED` result.json (code `terminated`) synchronously via `writeFileSync`/`renameSync`, then calls `process.exit(0)` — ensuring Core sees exit 0 with a valid Contract V1 result instead of signal death.
+
+Both fixes are covered by regression tests in `test/reliability-regression.test.js`.
 
 ## Required next sequence
 
@@ -78,4 +85,4 @@ This is the next mandatory engineering gate. Do **not** weaken Contract V1, Core
 
 ## Current next gate
 
-Start an independent Hand-drawn Curator session from repository Recovery Issue #1. The first formal implementation task must address the real generation-completeness blocker before broad aesthetic optimization is accepted. Any new runtime handed back to DeepTalk requires an exact SHA, native validation, Contract V1 compatibility, and an independent DeepTalk Nexus integration review.
+Stage 1 reliability fix is accepted plugin-local and pending DeepTalk Nexus integration review. Stage 2 visual quality work may proceed after Nexus repins. Any new runtime handed back to DeepTalk requires an exact SHA, native validation, Contract V1 compatibility, and an independent DeepTalk Nexus integration review.

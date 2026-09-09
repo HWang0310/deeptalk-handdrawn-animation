@@ -1,29 +1,29 @@
-// Regression test for generation-completeness blocker (Issue #1, Stage 1).
+// Regression tests for generation-completeness blocker (Issue #1, Stage 1).
 //
-// Root cause: runGeneration() does not catch errors from renderScene(),
-// sha256File(), or writeFile() for manifest/qa. When any of these steps
-// fails after frame rendering (e.g. ffmpeg encoding error, disk-full,
-// timeout kill), the exception propagates to main(), the process exits
-// non-zero, and NO result.json is written. DeepTalk Core correctly
-// records this as "non_zero_exit" generation failure and exposes no
-// READY candidate — but the plugin never produced the Contract-required
-// FAILED envelope either.
+// Root cause: DeepTalk Core uses subprocess.Popen(timeout=120, start_new_session=True)
+// to run the plugin. When the timeout fires, Core sends SIGTERM to the entire process
+// group via os.killpg(). The Node process had NO SIGTERM handler, so it exited
+// immediately (default behavior) without writing result.json — even though frames
+// had already been rendered to disk. Core correctly recorded this as a non_zero_exit
+// generation failure with no READY candidate.
 //
-// This test simulates a render failure by pointing output-dir at a
-// read-only directory and asserting that the runner:
-//   1. exits 0 (not 1);
-//   2. writes a valid result.json with operation_status FAILED;
-//   3. includes a problem envelope with a code, message, and retryability;
-//   4. does NOT fabricate a candidate.
+// Additionally, render-pipeline errors (ffmpeg encoding, resvg rasterization, disk-full)
+// were not caught by try/catch in runGeneration(), so they also caused exit 1 with no
+// result.json.
 //
-// Before the fix the runner exits 1 and writes no result.json at all.
+// Fix: (1) try/catch around render → encode → manifest/QA → candidate assembly;
+// (2) SIGTERM/SIGINT handler that writes a FAILED result.json before exiting.
+//
+// These tests verify:
+//   1. Render failure (non-signal): exits 0, writes FAILED result.json.
+//   2. SIGTERM during generation: exits 0, writes FAILED result.json.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile, chmod, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, chmod, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { CONTRACT_VERSION, computeProposalId } from '../src/contract-runner.js';
 
@@ -81,6 +81,57 @@ test('regression: render failure writes FAILED result.json, not exit 1 with no r
   }
 });
 
-// Use mkdir from node:fs/promises — the import at top only pulls specific
-// functions. Add it here so the test can create the output dir.
-import { mkdir } from 'node:fs/promises';
+test('regression: SIGTERM during generation writes FAILED result.json, not exit-with-signal and no result', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'hd-sigterm-'));
+  try {
+    const outputDir = join(dir, 'output');
+    const requestPath = join(dir, 'request.json');
+    const resultPath = join(dir, 'result.json');
+    const proposalId = computeProposalId(suitableOpportunity);
+    await writeFile(requestPath, `${JSON.stringify({
+      contract_version: CONTRACT_VERSION,
+      request_id: 'req_sigterm_001',
+      proposal_id: proposalId,
+      opportunity: suitableOpportunity,
+    }, null, 2)}\n`);
+    await mkdir(outputDir, { recursive: true });
+
+    const runnerPath = new URL('../src/contract-runner.js', import.meta.url).pathname;
+    const child = spawn(process.execPath, [runnerPath, '--request', requestPath, '--result', resultPath, '--output-dir', outputDir], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // Wait enough for frame rendering to start but before MP4 encoding completes.
+    // On a fast machine, 7000ms/84 frames takes ~35-40s. 5s is enough for several
+    // frames to be written but before ffmpeg encode starts.
+    const killDelay = 5000;
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+    }, killDelay);
+
+    const exitInfo = await new Promise((resolve) => {
+      child.on('close', (code, signal) => {
+        clearTimeout(timer);
+        resolve({ code, signal });
+      });
+    });
+
+    // The runner MUST exit 0 (not killed by signal) and write a result.json.
+    assert.equal(exitInfo.code, 0, `runner should exit 0 on SIGTERM, got code=${exitInfo.code} signal=${exitInfo.signal}`);
+    assert.equal(exitInfo.signal, null, `runner should not die from signal, got signal=${exitInfo.signal}`);
+
+    const written = JSON.parse(await readFile(resultPath, 'utf-8'));
+    assert.equal(written.contract_version, CONTRACT_VERSION);
+    assert.equal(written.opportunity_id, suitableOpportunity.opportunity_id);
+    assert.equal(written.proposal_id, proposalId);
+    assert.equal(written.operation_status, 'FAILED');
+    assert.ok(written.problem, 'FAILED result must carry a problem envelope');
+    assert.ok(written.problem.code, 'problem must have a code');
+    assert.ok(written.problem.message, 'problem must have a message');
+    assert.equal(typeof written.problem.retryability, 'boolean');
+    assert.equal(written.candidate, undefined, 'FAILED result must not fabricate a candidate');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
